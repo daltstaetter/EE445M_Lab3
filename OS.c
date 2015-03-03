@@ -27,19 +27,12 @@ void StartOS(void);
 
 #define FREE 0
 #define USED 1
-
+#define BLOCKED 1
+#define NBLOCKED 0
 #define NUMTHREADS 12
 #define STACKSIZE 128
-struct tcb{
-	int32_t *sp;
-	struct tcb *next;
-	struct tcb *previous;
-	int32_t ID;
-	int32_t SleepCtr;
-	int32_t Priority;
-	int32_t MemStatus;
-};
-typedef struct tcb tcbType;
+
+
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
 int32_t Stacks[NUMTHREADS][STACKSIZE];
@@ -49,8 +42,6 @@ Sema4Type g_mailboxDataValid, g_mailboxFree;
 Sema4Type g_dataAvailable, g_roomLeft, g_fifoMutex;
 unsigned long g_msTime; // num of ms since SysTick has started counting
 
-
-
 #define FIFOMAXSIZE 128
 #define FIFO_SUCCESS 1
 #define FIFO_FAIL 0
@@ -58,8 +49,6 @@ unsigned long *g_fifoPutPtr, *g_fifoGetPtr;
 unsigned long Fifo[FIFOMAXSIZE];
 unsigned long* g_Fifo;
 unsigned int g_FIFOSIZE;
-
-
 
 volatile int mutex;
 volatile int RoomLeft;
@@ -122,6 +111,8 @@ void OS_InitSemaphore(Sema4Type *semaPt, long value){
 	int32_t status;
 	status = StartCritical();
 	semaPt->Value = value;
+	semaPt->FrontPt = NULL;  //no threads blocked yet
+	semaPt->EndPt = NULL;
 	EndCritical(status);
 }
 
@@ -136,13 +127,12 @@ void OS_InitSemaphore(Sema4Type *semaPt, long value){
 void OS_Wait(Sema4Type *semaPt){
 	
 	OS_DisableInterrupts();
-	while(semaPt->Value <= 0)
-	{
-		OS_EnableInterrupts();
-		OS_Suspend();
-		OS_DisableInterrupts();
-	}
 	semaPt->Value = semaPt->Value - 1;
+	if(semaPt->Value<0){
+		RunPt->BlockedStatus=semaPt;
+		OS_DisableInterrupts();
+		OS_Suspend();
+	}
 	OS_EnableInterrupts();
 }	
 

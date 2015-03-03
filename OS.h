@@ -13,6 +13,7 @@
 // Holds the function pointers to the threads that will be launched
 extern void(*HandlerTaskArray[12])(void); 
 #include <stdlib.h>
+#include "tm4c123gh6pm.h"
 
 // edit these depending on your clock        
 #define TIME_1MS    80000          
@@ -20,12 +21,26 @@ extern void(*HandlerTaskArray[12])(void);
 #define TIME_500US  (TIME_1MS/2)  
 #define TIME_250US  (TIME_1MS/5)  
 
+typedef struct tcb tcbType;
+
 // feel free to change the type of semaphore, there are lots of good solutions
 struct  Sema4{
   long Value;   // >0 means free, otherwise means busy        
-// add other components here, if necessary to implement blocking
+	tcbType* FrontPt;// add other components here, if necessary to implement blocking
+	tcbType* EndPt;
 };
 typedef struct Sema4 Sema4Type;
+struct tcb{
+	int32_t *sp;
+	struct tcb *next;
+	struct tcb *previous;
+	int32_t ID;
+	int32_t SleepCtr;
+	Sema4Type* BlockedStatus;
+	int32_t Priority;
+	int32_t MemStatus;
+};
+
 extern Sema4Type LCDmutex;
 
 // ******** OS_Init ************
