@@ -50,6 +50,9 @@ extern Sema4Type LCDmutex;
 // output: none
 void OS_Init(void); 
 
+//*********OS_InitTCB************
+void OS_InitTCB(void);
+
 // ******** OS_InitSemaphore ************
 // initialize semaphore 
 // input:  pointer to a semaphore

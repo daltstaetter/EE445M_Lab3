@@ -1,5 +1,12 @@
 #include "OS.h"
 
+/*
+Adds a tcb to a linked list
+Could be called by OS_AddThread, OS_Signal, OS_bSignal
+Inputs: first - pointer to a pointer to the first element in the linked list
+        insert - pointer to linked list to be inserted
+				last - pointer to a pointer to the last element in the linked list
+*/
 void LLAdd(tcbType** first, tcbType* insert, tcbType** last){
 	if(first==NULL){
 		*first=insert;
@@ -22,7 +29,25 @@ void LLAdd(tcbType** first, tcbType* insert, tcbType** last){
 	}
 }
 
+/*
+Removes a tcb from a linked list
+Could be called by OS_Kill, OS_Signal, OS_bSignal
+Inputs: first - pointer to a pointer to the first element in the linked list
+        insert - pointer to linked list to be inserted
+				last - pointer to a pointer to the last element in the linked list
+*/
 void LLRemove(tcbType** first, tcbType* insert, tcbType** last){
-	
+	if(insert->next==insert){  //If the element is the last element in the list, set all pointers to null
+		*first=NULL;
+		*last=NULL;
+		insert->next=NULL;
+		insert->previous=NULL;
+	}else{
+		if(*last==insert){					//If the tcb being removed is the last tcb added, change the last pointer to point to
+			*last=insert->previous;		//the previous tcb
+		}
+		insert->previous->next=insert->next;				//remove from linked list
+		insert->next->previous=insert->previous;
+	}
 }
 

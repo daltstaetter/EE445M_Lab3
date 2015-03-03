@@ -10,6 +10,7 @@
 #include "PLL.h"
 #include "TIMER.h"
 #include "ifdef.h"
+#include "LinkedList.h"
 
 // function definitions in osasm.s
 void OS_DisableInterrupts(void); // Disable interrupts
@@ -107,7 +108,18 @@ void OS_Init(void){
 	#endif
 	NVIC_SYS_PRI3_R = (NVIC_SYS_PRI3_R&(~NVIC_SYS_PRI3_PENDSV_M))|(0x7 << NVIC_SYS_PRI3_PENDSV_S); // PendSV priority 7
 	//NVIC_SYS_HND_CTRL_R |= NVIC_SYS_HND_CTRL_PNDSV; //enable PendSV
-	Initialize tcb struct
+	OS_InitTCB();
+}
+
+//**********OS_InitTCB************
+// initialize the TCB priority structure
+void OS_InitTCB(void){
+	int i;
+	for(i=0; i<NUMPRI;i++){
+		PriStruct.MostRecentlyAdded[i]=NULL;
+		PriStruct.NumThreads[i]=0;
+		PriStruct.PriorityArray[i]=NULL;
+	}
 }
 
 // ******** OS_InitSemaphore ************
@@ -469,26 +481,18 @@ void OS_Sleep(unsigned long sleepTime){
 // input:  none
 // output: none
 void OS_Kill(void){
-	
 	int32_t status;
+	int32_t priority;
 	status = StartCritical(); 
-	if(RunPt->next!= RunPt) // keep one thread running at all times
-	{		
-	//Remove the currently running thread
-		RunPt->previous->next = RunPt->next; 
-		RunPt->next->previous = RunPt->previous;
-		// remove tcb from linked list by 
-		// moving the previous nodes nextPtr
-		// to the current node's nextPtr
-		
-		RunPt->sp = NULL;
-		RunPt->MemStatus = FREE;
-		// release reference to stack pointer
-		g_NumAliveThreads--;
-		EndCritical(status);
-		OS_Suspend();
-	}
+	priority = RunPt->Priority;
+	LLRemove(&PriStruct.PriorityArray[priority],RunPt,&PriStruct.MostRecentlyAdded[priority]);
+	RunPt->sp = NULL;
+	RunPt->MemStatus = FREE;
+	g_NumAliveThreads--;
 	EndCritical(status);
+	//Change RunPt->next to a lower priority
+	//trigger systick to determine the next highest priority interrupt to run
+	OS_Suspend();
 }
 
 // ******** OS_Suspend ************
