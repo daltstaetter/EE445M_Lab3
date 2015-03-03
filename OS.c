@@ -30,9 +30,15 @@ void StartOS(void);
 #define BLOCKED 1
 #define NBLOCKED 0
 #define NUMTHREADS 12
+#define NUMPRI 8
 #define STACKSIZE 128
 
-
+struct {
+		tcbType* PriorityArray[NUMPRI];
+		uint32_t NumThreads[NUMPRI];
+		tcbType* MostRecentlyAdded[NUMPRI];
+} PriStruct;
+uint32_t HighestPriority;
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
 int32_t Stacks[NUMTHREADS][STACKSIZE];
@@ -101,6 +107,7 @@ void OS_Init(void){
 	#endif
 	NVIC_SYS_PRI3_R = (NVIC_SYS_PRI3_R&(~NVIC_SYS_PRI3_PENDSV_M))|(0x7 << NVIC_SYS_PRI3_PENDSV_S); // PendSV priority 7
 	//NVIC_SYS_HND_CTRL_R |= NVIC_SYS_HND_CTRL_PNDSV; //enable PendSV
+	Initialize tcb struct
 }
 
 // ******** OS_InitSemaphore ************
@@ -151,7 +158,7 @@ void OS_Signal(Sema4Type *semaPt)
 	semaPt->Value = semaPt->Value + 1;
 	if( semaPt->Value <= 0)
 	{
-		semaPt->FrontPt->Priority 
+		//semaPt->FrontPt->Priority 
 	}
 	EndCritical(status);
 }	
@@ -201,77 +208,92 @@ uint32_t g_NumAliveThreads=0;
 int OS_AddThread(void(*task)(void), 
   unsigned long stackSize, unsigned long priority){ 
 	uint32_t k=0, first, second;
-//This implementation statically links threads depending on arbitrary order, and does not support dynamic adding and killing
-//	long status = StartCritical();
-//	if(i>NUMTHREADS){return 0;} //If max threads have been added return failure
-//	tcbs[i].ID=i;
-//	tcbs[i].Priority=priority;
-//	tcbs[i].SleepCtr=0;
-//	if(i>0){
-//		 tcbs[i-1].next = &tcbs[i];  //Set previously added thread's next to the thread just added
-//		 tcbs[i].previous=&tcbs[i-1]; //Create a back link from the thread we just left
-//		 tcbs[i].next = &tcbs[0];			//Set the thread just added's next to the first thread in the linked list
-//	}else{
-//		tcbs[0].next = &tcbs[i];
-//	}
-//	tcbs[0].previous = &tcbs[i];
-//  SetInitialStack(i); // initializes certain registers to arbitrary values
-//	Stacks[i][stackSize-2] = (int32_t)(task); // PC
-//	i++;
-//  EndCritical(status);
-	long status = StartCritical();
-	if(g_NumAliveThreads>=NUMTHREADS){return 0;} //If max threads have been added return failure
-	tcbs[g_NumAliveThreads].ID=g_NumAliveThreads;
-  tcbs[g_NumAliveThreads].Priority=priority;
-	tcbs[g_NumAliveThreads].SleepCtr=0;
-	if(g_NumAliveThreads==0){
-		RunPt=&tcbs[0];     //First thread added at start of OS
-		tcbs[0].next=&tcbs[0];
-		tcbs[0].previous = &tcbs[0];
-		SetInitialStack(0); // initializes certain registers to arbitrary values
-		Stacks[0][stackSize-2] = (int32_t)(task); // PC
-		tcbs[0].MemStatus=USED;
-		g_NumAliveThreads++;
-	}
 
-//	else if(g_NumAliveThreads==1){		//Second thread added to establish a circle
-//		tcbs[0].previous = &tcbs[1];
-//		tcbs[0].next = &tcbs[1];
-//		tcbs[1].next = &tcbs[0];
-//		tcbs[1].previous = &tcbs[0];
-//		SetInitialStack(1); // initializes certain registers to arbitrary values
-//		Stacks[1][stackSize-2] = (int32_t)(task); // PC
-//		tcbs[1].MemStatus=USED;
-//		g_NumAliveThreads++;
-//	}
-	else{
-			for(k=0; k<NUMTHREADS; k++){
-			if(tcbs[k].MemStatus==FREE){
-				if(g_NumAliveThreads==1)
-				{
-					RunPt->previous=&tcbs[k];
-					RunPt->next = &tcbs[k];
-					tcbs[k].next=RunPt;
-					tcbs[k].previous=RunPt;
-					SetInitialStack(k);
-					Stacks[k][stackSize-2] = (int32_t)(task); // PC
-					g_NumAliveThreads++;
-					tcbs[k].MemStatus=USED;
-					break;
-				}else{
-					tcbs[k].next=RunPt->next;
-					RunPt->next->previous = &tcbs[k];
-					tcbs[k].previous=RunPt;
-					RunPt->next=&tcbs[k];
-					SetInitialStack(k); // initializes certain registers to arbitrary values
-					Stacks[k][stackSize-2] = (int32_t)(task); // PC
-					g_NumAliveThreads++;
-					tcbs[k].MemStatus=USED;
-					break;
-				}
-			}
+	
+	long status = StartCritical();
+	if(g_NumAliveThreads>=NUMTHREADS){
+		EndCritical(status);
+		return 0;
+	} //If max threads have been added return failure
+	for(k=0; k<NUMTHREADS; k++){									//for loop checks for free space in array of tcbs
+		if(tcbs[k].MemStatus==FREE){
+			//update thread information
+			tcbs[k].ID=k;				
+			tcbs[k].Priority=priority;
+			tcbs[k].SleepCtr=0;
+			//Set the stacks
+			SetInitialStack(k);
+			Stacks[k][stackSize-2] = (int32_t)(task); // PC
+			g_NumAliveThreads++;
+			tcbs[k].MemStatus=USED;	//Set memory as used
+			LLAdd(&PriStruct.PriorityArray[priority],&tcbs[k],&PriStruct.MostRecentlyAdded[priority]);
+//			if(PriStruct.PriorityArray[priority]==NULL){		//priority level is empty
+//				PriStruct.PriorityArray[priority]=&tcbs[k];			//first thread at that priority
+//				PriStruct.NumThreads[priority]++;									//Number of threads at that priority increase
+//				tcbs[k].next=&tcbs[k];					//Link it to itself if only thread at that priority
+//				tcbs[k].previous=&tcbs[k];
+//			}else if(PriStruct.NumThreads[priority]==1){					//priority level has one thread in it
+//				PriStruct.NumThreads[priority]++;										//number of threads increase at that priority
+//				PriStruct.MostRecentlyAdded[priority]->next=&tcbs[k];		//first thread linked to the thread just added
+//				PriStruct.MostRecentlyAdded[priority]->previous=&tcbs[k];
+//				tcbs[k].next=PriStruct.MostRecentlyAdded[priority];			//thread just added linked to the first thread
+//				tcbs[k].previous=PriStruct.MostRecentlyAdded[priority];
+//			} else{
+//				PriStruct.NumThreads[priority]++;
+//				PriStruct.MostRecentlyAdded[priority]->next=&tcbs[k];		//first thread linked to the thread just added
+//				PriStruct.PriorityArray[priority]->previous=&tcbs[k];
+//				tcbs[k].next=PriStruct.PriorityArray[priority];			//thread just added linked to the first thread
+//				tcbs[k].previous=PriStruct.MostRecentlyAdded[priority];
+//			}
+//			PriStruct.MostRecentlyAdded[priority]=&tcbs[k];
 		}
 	}
+		
+		
+		
+		
+	
+//	if(g_NumAliveThreads>=NUMTHREADS){return 0;} //If max threads have been added return failure
+//	tcbs[g_NumAliveThreads].ID=g_NumAliveThreads;
+//  tcbs[g_NumAliveThreads].Priority=priority;
+//	tcbs[g_NumAliveThreads].SleepCtr=0;
+//	if(g_NumAliveThreads==0){
+//		RunPt=&tcbs[0];     //First thread added at start of OS
+//		tcbs[0].next=&tcbs[0];
+//		tcbs[0].previous = &tcbs[0];
+//		SetInitialStack(0); // initializes certain registers to arbitrary values
+//		Stacks[0][stackSize-2] = (int32_t)(task); // PC
+//		tcbs[0].MemStatus=USED;
+//		g_NumAliveThreads++;
+//	}
+//	else{
+//			for(k=0; k<NUMTHREADS; k++){
+//			if(tcbs[k].MemStatus==FREE){
+//				if(g_NumAliveThreads==1)
+//				{
+//					RunPt->previous=&tcbs[k];
+//					RunPt->next = &tcbs[k];
+//					tcbs[k].next=RunPt;
+//					tcbs[k].previous=RunPt;
+//					SetInitialStack(k);
+//					Stacks[k][stackSize-2] = (int32_t)(task); // PC
+//					g_NumAliveThreads++;
+//					tcbs[k].MemStatus=USED;
+//					break;
+//				}else{
+//					tcbs[k].next=RunPt->next;
+//					RunPt->next->previous = &tcbs[k];
+//					tcbs[k].previous=RunPt;
+//					RunPt->next=&tcbs[k];
+//					SetInitialStack(k); // initializes certain registers to arbitrary values
+//					Stacks[k][stackSize-2] = (int32_t)(task); // PC
+//					g_NumAliveThreads++;
+//					tcbs[k].MemStatus=USED;
+//					break;
+//				}
+//			}
+//		}
+//	}
 
 	EndCritical(status);
   return 1;               // successful;
