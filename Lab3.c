@@ -351,7 +351,7 @@ int main(void){
 
 //*******attach background tasks***********
   OS_AddSwitchTasks(&SW1Push,&doNothing0,1);
-//  OS_AddSW2Task(&SW2Push,2);  // add this line in Lab 3
+	//OS_AddSW2Task(&SW2Push,2);  // add this line in Lab 3
   
 
   NumCreated = 0 ;
@@ -359,7 +359,7 @@ int main(void){
   NumCreated += OS_AddThread(&Interpreter,128,2); 
   NumCreated += OS_AddThread(&Consumer,128,1); 
   NumCreated += OS_AddThread(&PID,128,3);  // Lab 3, make this lowest priority
-	ADC_Open(10);  // sequencer 3, channel 10, PB4, sampling in DAS()											/*****Change ADC_Init********/
+	ADC_Open(10);  // sequencer 3, channel 10, PB4, sampling in DAS()											
 	OS_AddPeriodicThread(&DAS,4,2000,3); // 2 kHz real time sampling of PB4, Timer2
  
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
