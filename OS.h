@@ -289,4 +289,6 @@ void OS_Launch(unsigned long theTimeSlice);
 
 void Jitter(void);
 
+void OS_ResetSysTick(void);
+
 #endif

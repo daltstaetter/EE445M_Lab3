@@ -39,6 +39,7 @@ struct {
 		uint32_t NumThreads[NUMPRI];
 		tcbType* MostRecentlyAdded[NUMPRI];
 } PriStruct;
+
 uint32_t HighestPriority;
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
@@ -135,27 +136,46 @@ void OS_InitSemaphore(Sema4Type *semaPt, long value){
 	EndCritical(status);
 }
 
-// DA 2/18
+// DA 3/2
 // ******** OS_Wait ************
 // decrement semaphore 
 // Lab2 spinlock
 // Lab3 block if less than zero
 // input:  pointer to a counting semaphore
 // output: none
-// From book pg. 191
 void OS_Wait(Sema4Type *semaPt){
 	
-	OS_DisableInterrupts();
+	int32_t status;
+	status = StartCritical(); // save I bit 
+	OS_DisableInterrupts(); // make sure interrupts are disabled
 	semaPt->Value = semaPt->Value - 1;
-	if(semaPt->Value<0){
+
+	if(semaPt->Value < 0){ // add to sema4's blocking linked list
 		RunPt->BlockedStatus=semaPt;
 		OS_DisableInterrupts();
-		OS_Suspend();
+/*		if(semaPt->FrontPt == NULL) // when the sem4 LL is initially empty and you add the first element
+//		{
+//			semaPt->FrontPt = RunPt;
+//			semaPt->EndPt = RunPt;
+//		}
+//		else if (semaPt->FrontPt == semaPt->EndPt) // when there is one element in LL and you add the 2nd
+//		{
+//			semaPt->FrontPt->next = RunPt;
+//			semaPt->EndPt = RunPt;
+//		}
+//		else // general case when there is 2 or more elements and you add to a list, insert at the back for round robin
+//		{
+//			semaPt->EndPt->next = RunPt; // add to back up LL
+//			semaPt->EndPt = RunPt; // update EndPt to be the new back of the list
+//		}
+*/
+		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+		OS_Suspend(); // I need to restore the I bit after the PendSV Handler context switch
 	}
 	OS_EnableInterrupts();
 }	
 
-// DA 2/18
+// DA 3/2
 // ******** OS_Signal ************
 // increment semaphore 
 // Lab2 spinlock
@@ -165,12 +185,35 @@ void OS_Wait(Sema4Type *semaPt){
 // From book pg. 191
 void OS_Signal(Sema4Type *semaPt)
 {	
+	tcbType* wakeupThread;
 	int32_t status;
-	status = StartCritical();
+	
+	status = StartCritical(); // save I bit 
+	OS_DisableInterrupts(); // make sure interrupts are disabled
 	semaPt->Value = semaPt->Value + 1;
+	
 	if( semaPt->Value <= 0)
 	{
 		//semaPt->FrontPt->Priority 
+		
+		
+#ifdef PRIORITYSCHEDULER // wakeup highest priority thread & unblock it
+		semaPt-
+		wakeupThread = Sem4LLARemove(...);
+		wakeupThread->BlockedStatus = NULL; // now it shouldn't be skipped over in the scheduler since its no longer blocked
+		
+		if(wakeupThread->Priority > RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
+		{
+			OS_Suspend();
+		}
+#else	//round robin: choose thread waiting longest, do not suspend execution of thread that called OS_Signal
+		// Be careful not to suspend a background thread
+		wakeupThread = Sem4LLARemove(semaPt);
+		semaPt->FrontPt
+		
+		
+		wakeupThread->BlockedStatus = NULL; // now it shouldn't be skipped over in the scheduler since its no longer blocked
+#endif
 	}
 	EndCritical(status);
 }	
@@ -500,14 +543,13 @@ void OS_Kill(void){
 // scheduler will choose another thread to execute
 // Can be used to implement cooperative multitasking 
 // Same function as OS_Sleep(0)
-// input:  none
+// input:  status holds the I bit from the priority OS_Wait, restores it after the PendSV switch
 // output: none
 void OS_Suspend(void){
-	uint32_t sysreg;
+	
 	long sr = StartCritical();
-	sysreg = NVIC_SYS_HND_CTRL_R;
 	NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV; // does a contex switch 
-	OS_ClearMsTime(); // reset SysTick period
+	OS_ResetSysTick(); // reset SysTick period
 	EndCritical(sr);
 }
  
@@ -698,17 +740,20 @@ unsigned long OS_TimeDifference(unsigned long start, unsigned long stop)
 // Outputs: none
 // You are free to change how this works
 void OS_ClearMsTime(void)
+{	
+	g_msTime = 0; // atomic
+}
+
+void OS_ResetSysTick(void)
 {
-	//int32_t status = StartCritical();
 	// Need to do this for SysTick since that
 	// is what we are using for the system time
 	// any write to NVIC_ST_CURRENT_R resets it to the
 	// NVIC_ST_RELOAD_R value
-	//NVIC_ST_CURRENT_R = 10;
-	//EndCritical(status);
-	
-	g_msTime = 0; // atomic
-	
+	// This would mess up the msTime if you remove systick's periodicity
+	int32_t status = StartCritical();
+	NVIC_ST_CURRENT_R = 10;
+	EndCritical(status);
 }
 
 // ******** OS_MsTime ************
