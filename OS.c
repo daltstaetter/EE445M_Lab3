@@ -34,13 +34,19 @@ void StartOS(void);
 #define NUMPRI 8
 #define STACKSIZE 128
 
+<<<<<<< HEAD
 struct {
 		tcbType* PriorityArray[NUMPRI];
 		uint32_t NumThreads[NUMPRI];
 		tcbType* MostRecentlyAdded[NUMPRI];
 } PriStruct;
 
+=======
+tcbType* FrontOfPriLL[NUMPRI];
+tcbType* EndOfPriLL[NUMPRI];
+>>>>>>> 7613c5329b5e2eca556d611d6cd594baba243d00
 uint32_t HighestPriority;
+
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
 int32_t Stacks[NUMTHREADS][STACKSIZE];
@@ -117,9 +123,8 @@ void OS_Init(void){
 void OS_InitTCB(void){
 	int i;
 	for(i=0; i<NUMPRI;i++){
-		PriStruct.MostRecentlyAdded[i]=NULL;
-		PriStruct.NumThreads[i]=0;
-		PriStruct.PriorityArray[i]=NULL;
+		FrontOfPriLL[i]=NULL;
+		EndOfPriLL[i]=NULL;
 	}
 }
 
@@ -262,9 +267,8 @@ void OS_bSignal(Sema4Type *semaPt)
 uint32_t g_NumAliveThreads=0;
 int OS_AddThread(void(*task)(void), 
   unsigned long stackSize, unsigned long priority){ 
-	uint32_t k=0, first, second;
+	uint32_t k=0;
 
-	
 	long status = StartCritical();
 	if(g_NumAliveThreads>=NUMTHREADS){
 		EndCritical(status);
@@ -281,75 +285,10 @@ int OS_AddThread(void(*task)(void),
 			Stacks[k][stackSize-2] = (int32_t)(task); // PC
 			g_NumAliveThreads++;
 			tcbs[k].MemStatus=USED;	//Set memory as used
-			LLAdd(&PriStruct.PriorityArray[priority],&tcbs[k],&PriStruct.MostRecentlyAdded[priority]);
-//			if(PriStruct.PriorityArray[priority]==NULL){		//priority level is empty
-//				PriStruct.PriorityArray[priority]=&tcbs[k];			//first thread at that priority
-//				PriStruct.NumThreads[priority]++;									//Number of threads at that priority increase
-//				tcbs[k].next=&tcbs[k];					//Link it to itself if only thread at that priority
-//				tcbs[k].previous=&tcbs[k];
-//			}else if(PriStruct.NumThreads[priority]==1){					//priority level has one thread in it
-//				PriStruct.NumThreads[priority]++;										//number of threads increase at that priority
-//				PriStruct.MostRecentlyAdded[priority]->next=&tcbs[k];		//first thread linked to the thread just added
-//				PriStruct.MostRecentlyAdded[priority]->previous=&tcbs[k];
-//				tcbs[k].next=PriStruct.MostRecentlyAdded[priority];			//thread just added linked to the first thread
-//				tcbs[k].previous=PriStruct.MostRecentlyAdded[priority];
-//			} else{
-//				PriStruct.NumThreads[priority]++;
-//				PriStruct.MostRecentlyAdded[priority]->next=&tcbs[k];		//first thread linked to the thread just added
-//				PriStruct.PriorityArray[priority]->previous=&tcbs[k];
-//				tcbs[k].next=PriStruct.PriorityArray[priority];			//thread just added linked to the first thread
-//				tcbs[k].previous=PriStruct.MostRecentlyAdded[priority];
-//			}
-//			PriStruct.MostRecentlyAdded[priority]=&tcbs[k];
+			LLAdd(&FrontOfPriLL[priority],&tcbs[k],&EndOfPriLL[priority]);		//Add tcb to linked list
+			HighestPriority|=1<<priority;		//set the highest priority bit 
 		}
 	}
-		
-		
-		
-		
-	
-//	if(g_NumAliveThreads>=NUMTHREADS){return 0;} //If max threads have been added return failure
-//	tcbs[g_NumAliveThreads].ID=g_NumAliveThreads;
-//  tcbs[g_NumAliveThreads].Priority=priority;
-//	tcbs[g_NumAliveThreads].SleepCtr=0;
-//	if(g_NumAliveThreads==0){
-//		RunPt=&tcbs[0];     //First thread added at start of OS
-//		tcbs[0].next=&tcbs[0];
-//		tcbs[0].previous = &tcbs[0];
-//		SetInitialStack(0); // initializes certain registers to arbitrary values
-//		Stacks[0][stackSize-2] = (int32_t)(task); // PC
-//		tcbs[0].MemStatus=USED;
-//		g_NumAliveThreads++;
-//	}
-//	else{
-//			for(k=0; k<NUMTHREADS; k++){
-//			if(tcbs[k].MemStatus==FREE){
-//				if(g_NumAliveThreads==1)
-//				{
-//					RunPt->previous=&tcbs[k];
-//					RunPt->next = &tcbs[k];
-//					tcbs[k].next=RunPt;
-//					tcbs[k].previous=RunPt;
-//					SetInitialStack(k);
-//					Stacks[k][stackSize-2] = (int32_t)(task); // PC
-//					g_NumAliveThreads++;
-//					tcbs[k].MemStatus=USED;
-//					break;
-//				}else{
-//					tcbs[k].next=RunPt->next;
-//					RunPt->next->previous = &tcbs[k];
-//					tcbs[k].previous=RunPt;
-//					RunPt->next=&tcbs[k];
-//					SetInitialStack(k); // initializes certain registers to arbitrary values
-//					Stacks[k][stackSize-2] = (int32_t)(task); // PC
-//					g_NumAliveThreads++;
-//					tcbs[k].MemStatus=USED;
-//					break;
-//				}
-//			}
-//		}
-//	}
-
 	EndCritical(status);
   return 1;               // successful;
 }
@@ -527,14 +466,17 @@ void OS_Kill(void){
 	int32_t status;
 	int32_t priority;
 	status = StartCritical(); 
-	priority = RunPt->Priority;
-	LLRemove(&PriStruct.PriorityArray[priority],RunPt,&PriStruct.MostRecentlyAdded[priority]);
-	RunPt->sp = NULL;
+	RunPt->sp = NULL;							//free the tcb memory
 	RunPt->MemStatus = FREE;
-	g_NumAliveThreads--;
+	priority = RunPt->Priority;
+	g_NumAliveThreads--;				//decrement number of alive threads
+	if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])){		//Linked list is empty at this priority
+		HighestPriority&=~(1<<priority);		//indicate that there are no threads at this priority anymore
+		EndCritical(status);
+		//trigger systick to determine next hightest priority thread to run, since there are no more threads at this priority
+	}
 	EndCritical(status);
-	//Change RunPt->next to a lower priority
-	//trigger systick to determine the next highest priority interrupt to run
+	//Since there are still threads at this priority, keep running threads at this priority
 	OS_Suspend();
 }
 
@@ -896,16 +838,26 @@ void PF3_Toggle(void)
 }
 
 void Jitter(void){;}
+ 
 
-//__asm  
-
+//_asm unsigned long
+//	HighestPri(void){
+//		LDR R1,=HighestPriority	 ;R1 address of HighestPriority
+//		LDR R0,[R1]          ;R0 has value of HighestPriority
+//		CLV R0, R0
+//		BXLR
+//	}
+	
 void SysTick_Handler(void)
 {
 	int status;
 	tcbType* sleepIterator;
 	status = StartCritical();
-#define SYSTICK_PERIOD 1 //Systick interrupts every 1 ms so decrement sleep counters by 1 
+#define SYSTICK_PERIOD 2 //Systick interrupts every 2 ms so decrement sleep counters by 2 
 	g_msTime += SYSTICK_PERIOD;
+	//determine hightest priority
+	//Go to that priority in the array and set RunPt->next=FrontPriLL[highest priority];
+	//check for sleeping and trigger context switch
 	
 	if(RunPt->SleepCtr > 0)			//if the sleep counter of the running thread is nonzero, decrement it
 	{
@@ -921,9 +873,7 @@ void SysTick_Handler(void)
 	}
 
 	EndCritical(status);
-	PE5^=0xFF;
 	OS_Suspend(); //context switch
-	PE5^=0xFF;
 }
 	
 	
