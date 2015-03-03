@@ -149,6 +149,10 @@ void OS_Signal(Sema4Type *semaPt)
 	int32_t status;
 	status = StartCritical();
 	semaPt->Value = semaPt->Value + 1;
+	if( semaPt->Value <= 0)
+	{
+		semaPt->FrontPt->Priority 
+	}
 	EndCritical(status);
 }	
 
@@ -180,7 +184,7 @@ void OS_bWait(Sema4Type *semaPt){
 // input:  pointer to a binary semaphore
 // output: none
 void OS_bSignal(Sema4Type *semaPt)
-{
+{	
 	semaPt->Value = 1; // atomic
 }
 
