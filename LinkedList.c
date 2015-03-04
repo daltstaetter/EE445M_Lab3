@@ -65,6 +65,9 @@ int LLRemove(tcbType** first, tcbType* insert, tcbType** last){
 // need to modify this for a priority sema4Add
 void Sem4LLAdd(tcbType** ptFrontPt,tcbType* insert,tcbType** ptEndPt)
 {
+	LLAdd(ptFrontPt,insert,ptEndPt);
+	
+/*
 	if(*ptFrontPt == NULL) // when the sem4 LL is initially empty and you add the first element
 	{
 		(*ptFrontPt) = insert; // set frontpt to the first element
@@ -94,6 +97,7 @@ void Sem4LLAdd(tcbType** ptFrontPt,tcbType* insert,tcbType** ptEndPt)
 		insert->next = NULL; // mght be necessary if this ever becomes the fron of the list & we are checking for null
 		(*ptEndPt) = insert; // update EndPt to be the new back of the list
 	}
+	*/
 }
 
 
