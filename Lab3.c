@@ -336,7 +336,7 @@ void doNothing0(void)
 #define FINAL
 #ifdef FINAL
 //*******************final user main DEMONTRATE THIS TO TA**********
-int main(void){ 
+int Testmain_final(void){ 
   OS_Init();           // initialize, disable interrupts
   PortE_Init();
 	OS_InitSemaphore(&LCDmutex,1);
@@ -367,14 +367,14 @@ int main(void){
   return 0;            // this never executes
 }
 #endif
-#undef DEBUG
+
 #ifdef DEBUG
 //+++++++++++++++++++++++++DEBUGGING CODE++++++++++++++++++++++++
 // ONCE YOUR RTOS WORKS YOU CAN COMMENT OUT THE REMAINING CODE
 
 
 //LinkedList Test Code
-int main(void){
+int Testmain_LL(void){
 	tcbType* frontLL1=NULL;
 	tcbType* endLL1=NULL;
 	tcbType tcbs[3];
@@ -414,7 +414,7 @@ void Thread1(void){
   for(;;){
     PE0 ^= 0x01;       // heartbeat
     Count1++;
-    OS_Suspend();      // cooperative multitasking
+    OS_Suspend(0);      // cooperative multitasking
   }
 }
 void Thread2(void){
@@ -422,7 +422,7 @@ void Thread2(void){
   for(;;){
     PE1 ^= 0x02;       // heartbeat
     Count2++;
-    OS_Suspend();      // cooperative multitasking
+    OS_Suspend(0);      // cooperative multitasking
   }
 }
 void Thread3(void){
@@ -430,7 +430,7 @@ void Thread3(void){
   for(;;){
     PE2 ^= 0x04;       // heartbeat
     Count3++;
-    OS_Suspend();      // cooperative multitasking
+    OS_Suspend(0);      // cooperative multitasking
   }
 }
 
@@ -439,8 +439,8 @@ int Testmain1(void){  // Testmain1
   PortE_Init();       // profile user threads
   NumCreated = 0 ;
   NumCreated += OS_AddThread(&Thread1,128,1); 
-  NumCreated += OS_AddThread(&Thread2,128,2); 
-  NumCreated += OS_AddThread(&Thread3,128,3); 
+  NumCreated += OS_AddThread(&Thread2,128,1); 
+  NumCreated += OS_AddThread(&Thread3,128,0); 
   // Count1 Count2 Count3 should be equal or off by one at all times
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
   return 0;            // this never executes
@@ -460,7 +460,7 @@ void Thread1b(void){
 	int mail = 0x121212;
   for(;;){
     PE0 ^= 0x01;       // heartbeat
-		OS_MailBox_Send(mail);
+		//OS_MailBox_Send(mail);
     Count1++;
   }
 }
@@ -471,7 +471,7 @@ void Thread2b(void){
 	Count2 = 0;
   for(;;){
     PE1 ^= 0x02;       // heartbeat
-		Mail_recv = OS_MailBox_Recv();
+		//Mail_recv = OS_MailBox_Recv();
 		//ST7735_Message(0,0,"Mail",Mail_recv);
     Count2++;
   }
@@ -502,22 +502,22 @@ int Switch2Count=0;
 	 Switch2Count++;
  }
 
-int Testmain2(void){  // Testmain2
+int main(void){  // Testmain2
 
 	OS_Init();           // initialize, disable interrupts
-	OS_MailBox_Init();
-	Output_Init();				//Initialize LCD
+	//OS_MailBox_Init();
+	//Output_Init();				//Initialize LCD
   PortE_Init();       // profile user threads
 
   NumCreated = 0 ;
   NumCreated += OS_AddThread(&Thread1b,128,1); 
-  NumCreated += OS_AddThread(&Thread2b,128,2); 
-  NumCreated += OS_AddThread(&Thread3b,128,3);
-	OS_AddSwitchTasks(&DoNothing1,&DoNothing2,0);	
+  NumCreated += OS_AddThread(&Thread2b,128,1); 
+  NumCreated += OS_AddThread(&Thread3b,128,0);
+	//OS_AddSwitchTasks(&DoNothing1,&DoNothing2,0);	
   // Count1 Count2 Count3 should be equal on average
   // counts are larger than testmain1
  
-  OS_Launch(TIME_1MS); // doesn't return, interrupts enabled in here
+  OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
   return 0;            // this never executes
 }
 

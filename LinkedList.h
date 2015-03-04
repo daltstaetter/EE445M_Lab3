@@ -1,7 +1,7 @@
 #include "OS.h"
-void LLAdd(tcbType** first, tcbType* insert, tcbType** last);
+int LLAdd(tcbType** first, tcbType* insert, tcbType** last);
 
-void LLRemove(tcbType** first, tcbType* insert, tcbType** last);
+int LLRemove(tcbType** first, tcbType* insert, tcbType** last);
 
 
 // insert into the sema4 linked list, insert at back of list

@@ -34,14 +34,19 @@ void StartOS(void);
 #define NUMPRI 8
 #define STACKSIZE 128
 
+#define SYSTICK_PERIOD 2 //Systick interrupts every 2 ms so decrement sleep counters by 2
+
 //Priority Array of Round-Robin Linked Lists
 tcbType* FrontOfPriLL[NUMPRI];
 tcbType* EndOfPriLL[NUMPRI];
-uint32_t HighestPriority;
+uint32_t HighestPriority=0;
 
 //Sleeping Linked List
 tcbType* FrontOfSlpLL=NULL;
 tcbType* EndOfSlpLL=NULL;
+
+uint32_t PriorityChange = 0;
+tcbType* HigherRunPt = NULL;
 
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
@@ -111,7 +116,7 @@ void OS_Init(void){
 	#endif
 	NVIC_SYS_PRI3_R = (NVIC_SYS_PRI3_R&(~NVIC_SYS_PRI3_PENDSV_M))|(0x7 << NVIC_SYS_PRI3_PENDSV_S); // PendSV priority 7
 	//NVIC_SYS_HND_CTRL_R |= NVIC_SYS_HND_CTRL_PNDSV; //enable PendSV
-	OS_InitTCB();
+	OS_InitTCB(); //initializes the 
 }
 
 //**********OS_InitTCB************
@@ -171,7 +176,7 @@ void OS_Wait(Sema4Type *semaPt){
 //		}
 */
 		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
-		OS_Suspend(); // I need to restore the I bit after the PendSV Handler context switch
+		OS_Suspend(0); // I need to restore the I bit after the PendSV Handler context switch
 	}
 	OS_EnableInterrupts();
 }	
@@ -205,7 +210,7 @@ void OS_Signal(Sema4Type *semaPt)
 		
 		if(wakeupThread->Priority > RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
 		{
-			OS_Suspend();
+			OS_Suspend(0);
 		}
 #else	//round robin: choose thread waiting longest, do not suspend execution of thread that called OS_Signal
 		// Be careful not to suspend a background thread
@@ -231,7 +236,7 @@ void OS_bWait(Sema4Type *semaPt){
 	while(semaPt->Value == 0)
 	{
 		OS_EnableInterrupts();
-		OS_Suspend();										//cooperative
+		OS_Suspend(0);										//cooperative
 		OS_DisableInterrupts();
 	}
 	// it exits while loop once 
@@ -279,10 +284,18 @@ int OS_AddThread(void(*task)(void),
 			//Set the stacks
 			SetInitialStack(k);
 			Stacks[k][stackSize-2] = (int32_t)(task); // PC
+			if(g_NumAliveThreads==0){
+				HighestPriority|=1<<(31-priority);		//set the highest priority bit 
+			} 
 			g_NumAliveThreads++;
 			tcbs[k].MemStatus=USED;	//Set memory as used
 			LLAdd(&FrontOfPriLL[priority],&tcbs[k],&EndOfPriLL[priority]);		//Add tcb to linked list
-			HighestPriority|=1<<priority;		//set the highest priority bit 
+			if(1<<(31-priority) > HighestPriority){
+				PriorityChange = 1;
+				HigherRunPt = FrontOfPriLL[priority];
+			}
+			HighestPriority|=1<<(31-priority);		//set the highest priority bit 
+			break;
 		}
 	}
 	EndCritical(status);
@@ -443,14 +456,16 @@ void OS_Sleep(unsigned long sleepTime){
 	if(sleepTime > 0)
 	{
 		status = StartCritical();
-		priority=RunPt->Priority;
-		RunPt->SleepCtr = sleepTime; // atomic operation
-		LLAdd(&FrontOfSlpLL,RunPt,&EndOfSlpLL);
-		if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])){
-			//trigger systick to determine next priority thread
+		priority=RunPt->Priority;			//get priority of currently running thread
+		RunPt->SleepCtr = sleepTime; 	//set the sleep time
+		LLAdd(&FrontOfSlpLL,RunPt,&EndOfSlpLL);			//Add the thread to the sleeping list
+		if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])){	//remove from the active list 
+			HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
+			EndCritical(status);
+			OS_Suspend(1); //since the highest priority thread is the last at that priority, re-evaluate highest priority
 		}
 		EndCritical(status);
-		OS_Suspend();
+		OS_Suspend(0);	//there are still threads at this priority level, so run normal round-robin
 	}
 }
 
@@ -468,13 +483,13 @@ void OS_Kill(void){
 	priority = RunPt->Priority;
 	g_NumAliveThreads--;				//decrement number of alive threads
 	if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])){		//Linked list is empty at this priority
-		HighestPriority&=~(1<<priority);		//indicate that there are no threads at this priority anymore
+		HighestPriority&=~(1<<(31-priority));		//indicate that there are no threads at this priority anymore
 		EndCritical(status);
-		//trigger systick to determine next hightest priority thread to run, since there are no more threads at this priority
+		OS_Suspend(1);		//There are no more threads at this priority, re-evaluate the highest priority
 	}
 	EndCritical(status);
 	//Since there are still threads at this priority, keep running threads at this priority
-	OS_Suspend();
+	OS_Suspend(0);
 }
 
 // ******** OS_Suspend ************
@@ -482,11 +497,20 @@ void OS_Kill(void){
 // scheduler will choose another thread to execute
 // Can be used to implement cooperative multitasking 
 // Same function as OS_Sleep(0)
-// input:  status holds the I bit from the priority OS_Wait, restores it after the PendSV switch
+// input:  flag that indicates whether to revaluate the highest priority or not. 
+//					1 - revaluate highest priority
+// 					0 - highest priority maintained
 // output: none
-void OS_Suspend(void){
-	
+
+void OS_Suspend(int PriChange){
+	uint32_t HiPri;
 	long sr = StartCritical();
+	if(PriChange){
+			PriorityChange = 1;
+			//determine hightest priority
+			HiPri = HighestPri();
+			HigherRunPt=FrontOfPriLL[HiPri];
+	}
 	NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV; // does a contex switch 
 	OS_ResetSysTick(); // reset SysTick period
 	EndCritical(sr);
@@ -716,7 +740,10 @@ unsigned long OS_MsTime(void)
 // In Lab 3, you should implement the user-defined TimeSlice field
 // It is ok to limit the range of theTimeSlice to match the 24-bit SysTick
 void OS_Launch(unsigned long theTimeSlice){
-	//RunPt = &tcbs[0];       // thread 0 will run first    This is done in OS_AddThread
+	uint32_t HiPri;
+	HiPri = HighestPri();
+	//RunPt = FrontOfPriLL[HiPri];       // thread with highest priority will run first 
+	RunPt = &tcbs[0];
 	#ifdef SYSTICK
 	NVIC_ST_CURRENT_R = 0;      // any write to current clears it
 	NVIC_ST_RELOAD_R = theTimeSlice - 1; // reload value
@@ -836,41 +863,64 @@ void PF3_Toggle(void)
 
 void Jitter(void){;}
  
-
-//_asm unsigned long
-//	HighestPri(void){
-//		LDR R1,=HighestPriority	 ;R1 address of HighestPriority
-//		LDR R0,[R1]          ;R0 has value of HighestPriority
-//		CLV R0, R0
-//		BXLR
-//	}
+//********OS_WakeUpSleeping**********
+//Iterates through the sleeping linked list and decrements counters
+//Moves the woken threads from the sleeping list to the active list
+//returns 1 if a change in highest priority occured
+//returns 0 if no change in highest priority occured
+static int OS_WakeUpSleeping(void){
+	tcbType* sleepIterator;
+	uint32_t priority;
+	uint32_t priChange=0;
+	if(FrontOfSlpLL==NULL){return 0;}
+	sleepIterator = EndOfSlpLL;
+	//Decrement the sleep counter of the last element in the sleeping thread
+	sleepIterator->SleepCtr -= SYSTICK_PERIOD;
+	//Move the last element from the sleeping list to the active list if it is done sleeping
+	if(sleepIterator->SleepCtr <= 0){
+			priority = sleepIterator->Priority;
+			//If the thread being added is the first of its priority, see if this priority is higher than the current highest priority
+			//If it is, indicate a change in highest priority
+			if(LLAdd(&FrontOfPriLL[priority],sleepIterator,&EndOfPriLL[priority])){
+				if(1<<(31-priority) > HighestPriority){
+					priChange=1;
+				}
+				HighestPriority|=1<<(31-priority);
+			}
+			LLRemove(&FrontOfSlpLL,sleepIterator,&EndOfSlpLL);
+	}	
+	//Iterate through the rest of the sleeping threads, decrementing sleeping counters
+	for(sleepIterator=FrontOfSlpLL; sleepIterator->previous!=EndOfSlpLL; sleepIterator=sleepIterator->next){
+		sleepIterator->SleepCtr -= SYSTICK_PERIOD;
+		if(sleepIterator->SleepCtr <= 0){
+			priority = sleepIterator->Priority;
+			//If the thread being added is the first of its priority, see if this priority is higher than the current highest priority
+			//If it is, indicate a change in highest priority
+			if(LLAdd(&FrontOfPriLL[priority],sleepIterator,&EndOfPriLL[priority])){			
+				if(1<<(31-priority) > HighestPriority){
+					priChange=1;
+				}
+				HighestPriority|=1<<(31-priority);
+			}
+			LLRemove(&FrontOfSlpLL,sleepIterator,&EndOfSlpLL);
+		}	
+	}
+	return priChange;
+}
 	
 void SysTick_Handler(void)
 {
 	int status;
-	tcbType* sleepIterator;
-	status = StartCritical();
-#define SYSTICK_PERIOD 2 //Systick interrupts every 2 ms so decrement sleep counters by 2 
+	uint32_t HiPri;
+	status = StartCritical(); 
 	g_msTime += SYSTICK_PERIOD;
-	//determine hightest priority
-	//Go to that priority in the array and set RunPt->next=FrontPriLL[highest priority];
-	//check for sleeping and trigger context switch
-	
-	if(RunPt->SleepCtr > 0)			//if the sleep counter of the running thread is nonzero, decrement it
-	{
-		RunPt->SleepCtr -= SYSTICK_PERIOD;
+	//Wake up sleeping threads
+	if(OS_WakeUpSleeping()){		//If a change in highest priority occured, suspend with re-evaluation of highest priority
+		EndCritical(status);
+		OS_Suspend(1);
 	}
-	for(sleepIterator = RunPt->next; sleepIterator != RunPt; sleepIterator = sleepIterator->next)
-	{
-		//Iterate through the linked list until all sleeping threads have been decremented
-		if(sleepIterator->SleepCtr > 0)
-		{
-			sleepIterator->SleepCtr -= SYSTICK_PERIOD;
-		}	
-	}
-
 	EndCritical(status);
-	OS_Suspend(); //context switch
+	OS_Suspend(0); //since a higher priority thread could have woken up, revaluate the highest priority
 }
 	
-	
+

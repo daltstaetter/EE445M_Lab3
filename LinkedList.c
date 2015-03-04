@@ -6,13 +6,16 @@ Could be called by OS_AddThread, OS_Signal, OS_bSignal
 Inputs: first - pointer to a pointer to the first element in the linked list
         insert - pointer to linked list to be inserted
 				last - pointer to a pointer to the last element in the linked list
+Outputs: 1 if it was the first element added in linked list
+				 0 if it was not the first element added to the list
 */
-void LLAdd(tcbType** first, tcbType* insert, tcbType** last){
+int LLAdd(tcbType** first, tcbType* insert, tcbType** last){
 	if(*first==NULL){   //empty linked list
 		*first=insert;
 		*last=insert;
 		insert->next=insert;
 		insert->previous=insert;
+		return 1;
 	} else if((*first==*last)&&(first!=NULL)){		//one element in linked list, adding the second
 		(*last)->next=insert;
 		(*last)->previous=insert;
@@ -27,6 +30,7 @@ void LLAdd(tcbType** first, tcbType* insert, tcbType** last){
 		insert->previous=*last;
 		*last=insert;
 	}
+	return 0;
 }
 
 /*
