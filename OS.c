@@ -34,18 +34,14 @@ void StartOS(void);
 #define NUMPRI 8
 #define STACKSIZE 128
 
-<<<<<<< HEAD
-struct {
-		tcbType* PriorityArray[NUMPRI];
-		uint32_t NumThreads[NUMPRI];
-		tcbType* MostRecentlyAdded[NUMPRI];
-} PriStruct;
-
-=======
+//Priority Array of Round-Robin Linked Lists
 tcbType* FrontOfPriLL[NUMPRI];
 tcbType* EndOfPriLL[NUMPRI];
->>>>>>> 7613c5329b5e2eca556d611d6cd594baba243d00
 uint32_t HighestPriority;
+
+//Sleeping Linked List
+tcbType* FrontOfSlpLL=NULL;
+tcbType* EndOfSlpLL=NULL;
 
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
@@ -442,16 +438,17 @@ int OS_AddSW2Task(void(*task)(void), unsigned long priority){
 
 void OS_Sleep(unsigned long sleepTime){
 	int32_t status;
+	uint32_t priority;
 
 	if(sleepTime > 0)
 	{
 		status = StartCritical();
+		priority=RunPt->Priority;
 		RunPt->SleepCtr = sleepTime; // atomic operation
-		//g_sleepingThreads[g_numSleepingThreads++] = RunPt->ID; 
-		// store an array containing the ID's of sleeping threads
-		// this can be used to create a linked list of sleeping threads
-		//RunPt->previous->next = RunPt->next; //Link the prior thread to the next thread
-		//RunPt->next->previous = RunPt->previous;
+		LLAdd(&FrontOfSlpLL,RunPt,&EndOfSlpLL);
+		if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])){
+			//trigger systick to determine next priority thread
+		}
 		EndCritical(status);
 		OS_Suspend();
 	}

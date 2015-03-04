@@ -8,19 +8,19 @@ Inputs: first - pointer to a pointer to the first element in the linked list
 				last - pointer to a pointer to the last element in the linked list
 */
 void LLAdd(tcbType** first, tcbType* insert, tcbType** last){
-	if(first==NULL){
+	if(first==NULL){   //empty linked list
 		*first=insert;
 		*last=insert;
 		insert->next=insert;
-		insert->previous=NULL;
-	} else if((*last)->previous==NULL){
+		insert->previous=insert;
+	} else if((*first==*last)&&(first!=NULL)){		//one element in linked list, adding the second
 		(*last)->next=insert;
 		(*last)->previous=insert;
 		(*first)->previous=insert;
 		insert->next=*first;
 		insert->previous=*last;
 		*last=insert;
-	} else{
+	} else{     //2 or greater elements in linked list
 		(*last)->next=insert;
 		(*first)->previous=insert;
 		insert->next=*first;
@@ -48,6 +48,8 @@ int LLRemove(tcbType** first, tcbType* insert, tcbType** last){
 	}else{
 		if(*last==insert){					//If the tcb being removed is the last tcb added, change the last pointer to point to
 			*last=insert->previous;		//the previous tcb
+		}else if(*first==insert){
+			*first=insert->next;
 		}
 		insert->previous->next=insert->next;				//remove from linked list
 		insert->next->previous=insert->previous;
