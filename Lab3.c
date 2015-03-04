@@ -36,11 +36,6 @@ extern void Interpreter(void);
 int32_t StartCritical(void);
 void EndCritical(int32_t primask);
 
-//#define INTERPRETER // cleared in ifdef.h
-//#define TASKS // set in ifdef.h
-//#define DEBUG // set in ifdef.h
-
-
 #ifdef TASKS
 //*********Prototype for FFT in cr4_fft_64_stm32.s, STMicroelectronics
 void cr4_fft_64_stm32(void *pssOUT, void *pssIN, unsigned short Nbin);
@@ -153,7 +148,7 @@ void DAS(void)
 //------------------Task 2--------------------------------
 // background thread executes with SW1 button
 // one foreground task created with button push
-// foreground treads run for 2 sec and die
+// foreground threads run for 2 sec and die
 // ***********ButtonWork*************
 extern int g_NumAliveThreads;
 void ButtonWork(void)

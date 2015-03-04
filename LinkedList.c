@@ -1,5 +1,8 @@
 #include "OS.h"
 
+//extern tcbType* FrontOfPriLL[NUMPRI];
+//extern tcbType* EndOfPriLL[NUMPRI];
+
 /*
 Adds a tcb to a linked list
 Could be called by OS_AddThread, OS_Signal, OS_bSignal
@@ -66,6 +69,9 @@ int LLRemove(tcbType** first, tcbType* insert, tcbType** last){
 // need to modify this for a priority sema4Add
 void Sem4LLAdd(tcbType** ptFrontPt,tcbType* insert,tcbType** ptEndPt)
 {
+	LLAdd(ptFrontPt,insert,ptEndPt);
+	
+/*
 	if(*ptFrontPt == NULL) // when the sem4 LL is initially empty and you add the first element
 	{
 		(*ptFrontPt) = insert; // set frontpt to the first element
@@ -84,7 +90,8 @@ void Sem4LLAdd(tcbType** ptFrontPt,tcbType* insert,tcbType** ptEndPt)
 		(*ptEndPt) = insert; // set the endpt to the element just inserted
 		
 		// added for the removing of the thread 
-		(*ptEndPt)->previous = *(ptFrontPt);
+		(*ptEndPt)->previous = *(ptFrontPt); // point the end back to the front
+		(*ptEndPt)->next = NULL; // set endPt->next to null
 		
 	}
 	else // general case when there is 2 or more elements and you add to a list, insert at the back for round robin
@@ -92,13 +99,9 @@ void Sem4LLAdd(tcbType** ptFrontPt,tcbType* insert,tcbType** ptEndPt)
 		(*ptEndPt)->next = insert; // add to end of the LL
 		insert->previous = (*ptEndPt); // point the inserted node (the new End) to the old end
 		insert->next = NULL; // mght be necessary if this ever becomes the fron of the list & we are checking for null
-		
-		
-		
-		
-		
 		(*ptEndPt) = insert; // update EndPt to be the new back of the list
 	}
+	*/
 }
 
 
@@ -111,8 +114,8 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 	tcbType* wakeupThread;
 	tcbType* temp;
 	int32_t tempHighPri;
+	int32_t linkListStatus;
 	
-#ifdef PRIORITYSCHEDULER // need to search for the highest priority thread
 	// we need to traverse the whole linked list
 	
 	// ** what if I removed a thread that was at the end
@@ -120,54 +123,28 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 	// what if I keep removing from front s.t. frontpt == endpt
 	// what if I keep removing from the end s.t. frontpt == endpt
 	
-	if(semaPt->Front == NULL)
+	if(semaPt->FrontPt == NULL)
 	{	// LL is empty, return
 		return NULL;
 	}
 	
-	temp = semaPt->Front;	
+	temp = semaPt->FrontPt;	
 	tempHighPri = temp->Priority;
 	while(temp != NULL)
 	{
-		if(tempHighPri > temp->priority)
+		if(tempHighPri > temp->Priority)
 		{	// we found a higher priority thread,
-			tempHighPri = temp->priority; // update tempHighPri 
+			// this gets the longest waiting highest priority thread since it picks only the 1st
+			// thread at the highest priority level
+			tempHighPri = temp->Priority; // update tempHighPri 
 			wakeupThread = temp; // wakeupThread(holds highest pri thread we found at current time)
-		}
+		} 
 		temp = temp->next;
 	}
 	// we now have the highest priority thread, return thread & update LL
 	// I need it to be doubly linked to get the previous
-	
-	if(wakeupThread == semaPt->First)
-	{ // don't want to set the previous node to the next node since its not circular LL
-		semaPt->First = wakeupThread->next; // update First to point to the new head of the LL
-		
-	}
-	else if(
-	else
-	{
-		wakeupThread->previous->next = wakeupThread->next; // prev point to next
-		wakeupThread->next->previous = wakeupThread->previous; // next point back to previous
-	}
-	
-#else	// round robin
-	if(semaPt->FrontPt == NULL)
-	{ // the list is empty, there is nothing to signal
-		return NULL;
-	}
-	else if(semaPt->FrontPt == semaPt->EndPt)
-	{ // the list had only one element in it, remove it then set the Front and End ptrs to NULL
-		wakeupThread = semaPt->FrontPt;
-		semaPt->FrontPt = NULL;
-		semaPt->EndPt = NULL;
-	}
-	else// if(semaPt->FrontPt->next // there are atleast 2 elements in it
-	{
-		wakeupThread = semaPt->FrontPt;
-		semaPt->FrontPt = semaPt->FrontPt->next; // update the new front of the LL after removing the thread we want
-	}
-#endif
+	linkListStatus = LLRemove(&semaPt->FrontPt,wakeupThread,&semaPt->EndPt);
+	// returns 1 if empty after removal 0 if not empty after removal
 	
 	return wakeupThread;
 }
