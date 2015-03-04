@@ -8,7 +8,7 @@ Inputs: first - pointer to a pointer to the first element in the linked list
 				last - pointer to a pointer to the last element in the linked list
 */
 void LLAdd(tcbType** first, tcbType* insert, tcbType** last){
-	if(first==NULL){   //empty linked list
+	if(*first==NULL){   //empty linked list
 		*first=insert;
 		*last=insert;
 		insert->next=insert;

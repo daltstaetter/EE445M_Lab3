@@ -30,6 +30,7 @@
 #include "UART.h"
 #include <string.h> 
 #include "ifdef.h"
+#include "LinkedList.h"
 
 extern void Interpreter(void);
 int32_t StartCritical(void);
@@ -370,7 +371,27 @@ int main(void){
 #ifdef DEBUG
 //+++++++++++++++++++++++++DEBUGGING CODE++++++++++++++++++++++++
 // ONCE YOUR RTOS WORKS YOU CAN COMMENT OUT THE REMAINING CODE
-// 
+
+
+//LinkedList Test Code
+int main(void){
+	tcbType* frontLL1=NULL;
+	tcbType* endLL1=NULL;
+	tcbType tcbs[3];
+	int i;
+	for(i=0;i<3;i++){
+		tcbs[i].ID=i;
+		LLAdd(&frontLL1,&tcbs[i],&endLL1);
+	}
+  for(i=0;i<3;i++){
+		LLRemove(&frontLL1,&tcbs[i],&endLL1);
+	}
+	while(1){;}
+}
+
+
+
+
 //*******************Initial TEST**********
 // This is the simplest configuration, test this first, (Lab 1 part 1)
 // run this with 

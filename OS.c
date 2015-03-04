@@ -210,7 +210,7 @@ void OS_Signal(Sema4Type *semaPt)
 #else	//round robin: choose thread waiting longest, do not suspend execution of thread that called OS_Signal
 		// Be careful not to suspend a background thread
 		wakeupThread = Sem4LLARemove(semaPt);
-		semaPt->FrontPt
+		//semaPt->FrontPt
 		
 		
 		wakeupThread->BlockedStatus = NULL; // now it shouldn't be skipped over in the scheduler since its no longer blocked
