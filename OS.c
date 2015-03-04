@@ -214,7 +214,7 @@ void OS_Signal(Sema4Type *semaPt)
 // input:  pointer to a binary semaphore
 // output: none
 void OS_bWait(Sema4Type *semaPt){
-	
+#ifdef LAB2	
 	OS_DisableInterrupts();
 	while(semaPt->Value == 0)
 	{
@@ -226,6 +226,23 @@ void OS_bWait(Sema4Type *semaPt){
 	// semaphore has been signaled
 	semaPt->Value = 0;
 	OS_EnableInterrupts();
+#else
+	
+	int32_t status;
+	status = StartCritical(); // save I bit 
+	OS_DisableInterrupts(); // make sure interrupts are disabled
+	//semaPt->Value = 0;
+
+	// always blocks since it is binary.
+	//if(semaPt->Value == 0){ // add to sema4's blocking linked list
+		RunPt->BlockedStatus = semaPt;
+		OS_DisableInterrupts();
+		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+		OS_Suspend(); // I need to restore the I bit after the PendSV Handler context switch
+//	}
+	OS_EnableInterrupts();
+	
+#endif
 }
 
 // DA 2/18
@@ -236,7 +253,36 @@ void OS_bWait(Sema4Type *semaPt){
 // output: none
 void OS_bSignal(Sema4Type *semaPt)
 {	
+#ifdef LAB2
 	semaPt->Value = 1; // atomic
+#else
+	tcbType* wakeupThread;
+	int32_t status;
+	
+	status = StartCritical(); // save I bit 
+	OS_DisableInterrupts(); // make sure interrupts are disabled
+//	semaPt->Value = 1;
+	
+	// it will always wakeup since its a binary signal 
+//	if(semaPt->Value <= 0)
+	{		
+		// wakeup highest priority thread & unblock it
+		wakeupThread = Sem4LLARemove(semaPt);
+		
+		// add to the priority linked list for that priority level of wakeupThread.
+		LLAdd(&FrontOfPriLL[wakeupThread->Priority],wakeupThread,&EndOfPriLL[wakeupThread->Priority]);
+		
+		// unblock the thread
+		// has already been added to scheduler & is now unblocked
+		wakeupThread->BlockedStatus = NULL;
+		
+		if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
+		{
+			OS_Suspend();
+		}
+	}
+	EndCritical(status);
+#endif
 }
 
 //******** OS_AddThread *************** 
