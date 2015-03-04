@@ -46,7 +46,7 @@ Outputs: 1 if the linked list is empty after removal
 				 0 if the linked list is not empty after removal
 */
 int LLRemove(tcbType** first, tcbType* insert, tcbType** last){
-	if(insert->next==insert){  //If the element is the last element in the list, set all pointers to null
+	if((*first==*last)&&(*first!=NULL)){  //If the element is the last element in the list, set all pointers to null
 		*first=NULL;
 		*last=NULL;
 		insert->next=NULL;
@@ -59,7 +59,7 @@ int LLRemove(tcbType** first, tcbType* insert, tcbType** last){
 			*first=insert->next;
 		}
 		insert->previous->next=insert->next;				//remove from linked list
-		insert->next->previous=insert->previous;
+		insert->next->previous=insert->previous;	
 	}
 	return 0;
 }

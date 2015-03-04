@@ -30,8 +30,8 @@
 
         EXTERN  RunPt            ; currently running thread
 		EXTERN  HighestPriority  ;holds the bit mapping for each priority
-		EXTERN  HigherRunPt
-		EXTERN  PriorityChange
+		EXTERN  ProxyThread
+		EXTERN  ProxyChange
         EXPORT  OS_DisableInterrupts
         EXPORT  OS_EnableInterrupts
         EXPORT  StartOS
@@ -57,21 +57,22 @@ PendSV_Handler
     LDR     R1, [R0]           ;    R1 = RunPt
     STR     SP, [R1]           ; 5) Save SP into TCB
 	
-	LDR   	R2, =PriorityChange
+	LDR   	R2, =ProxyChange
 	LDR		R3, [R2]			;R3 has PriorityChange
 	CMP		R3, #0
 	BNE		JumpToHigher
 	LDR R1, [R1,#4]			   ; R1 = RunPt, [R1,#4] = RunPt->next
 	STR     R1, [R0]           ;    RunPt = R1 (RunPt = RunPt->next)
+	LDR     SP, [R1]           ; 7) new thread SP; SP = RunPt->sp;
 	B		Done
 JumpToHigher	
-	LDR		R4, =HigherRunPt	;R2 = pointer to HigherRunPt
+	LDR		R4, =ProxyThread	;R2 = pointer to HigherRunPt
 	LDR		R5, [R4]			;R3 = HigherRunPt
 	STR 	R5, [R0]			; RunPt = HigherRunPt
 	MOV 	R6, #0
 	STR		R6, [R2]			;Clear PriorityChange flag
+	LDR 	SP, [R5]			; SP = HigherRunPt->sp
 Done
-    LDR     SP, [R1]           ; 7) new thread SP; SP = RunPt->sp;
     POP     {R4-R11}           ; 8) restore regs r4-11
     CPSIE   I                  ; 9) tasks run with interrupts enabled
     BX      LR                 ; 10) restore R0-R3,R12,LR,PC,PSR
