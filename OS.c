@@ -31,13 +31,7 @@ void StartOS(void);
 #define BLOCKED 1
 #define NBLOCKED 0
 #define NUMTHREADS 12
-#define NUMPRI 8
 #define STACKSIZE 128
-
-//Priority Array of Round-Robin Linked Lists
-tcbType* FrontOfPriLL[NUMPRI];
-tcbType* EndOfPriLL[NUMPRI];
-uint32_t HighestPriority;
 
 //Sleeping Linked List
 tcbType* FrontOfSlpLL=NULL;
@@ -193,29 +187,22 @@ void OS_Signal(Sema4Type *semaPt)
 	OS_DisableInterrupts(); // make sure interrupts are disabled
 	semaPt->Value = semaPt->Value + 1;
 	
-	if( semaPt->Value <= 0)
-	{
-		//semaPt->FrontPt->Priority 
+	if(semaPt->Value <= 0)
+	{		
+		// wakeup highest priority thread & unblock it
+		wakeupThread = Sem4LLARemove(semaPt);
 		
+		// add to the priority linked list for that priority level of wakeupThread.
+		LLAdd(&FrontOfPriLL[wakeupThread->Priority],wakeupThread,&EndOfPriLL[wakeupThread->Priority]);
 		
-#ifdef PRIORITYSCHEDULER // wakeup highest priority thread & unblock it
-		semaPt-
-		wakeupThread = Sem4LLARemove(...);
-		wakeupThread->BlockedStatus = NULL; // now it shouldn't be skipped over in the scheduler since its no longer blocked
+		// unblock the thread
+		// has already been added to scheduler & is now unblocked
+		wakeupThread->BlockedStatus = NULL;
 		
-		if(wakeupThread->Priority > RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
+		if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
 		{
 			OS_Suspend();
 		}
-#else	//round robin: choose thread waiting longest, do not suspend execution of thread that called OS_Signal
-		// Be careful not to suspend a background thread
-		wakeupThread = Sem4LLARemove(semaPt);
-		//semaPt->FrontPt
-		
-		
-		wakeupThread->BlockedStatus = NULL; // now it shouldn't be skipped over in the scheduler since its no longer blocked
-		AddBackToTCB();
-#endif
 	}
 	EndCritical(status);
 }	

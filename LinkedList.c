@@ -1,5 +1,8 @@
 #include "OS.h"
 
+//extern tcbType* FrontOfPriLL[NUMPRI];
+//extern tcbType* EndOfPriLL[NUMPRI];
+
 /*
 Adds a tcb to a linked list
 Could be called by OS_AddThread, OS_Signal, OS_bSignal
@@ -103,8 +106,8 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 	tcbType* wakeupThread;
 	tcbType* temp;
 	int32_t tempHighPri;
+	int32_t linkListStatus;
 	
-#ifdef PRIORITYSCHEDULER // need to search for the highest priority thread
 	// we need to traverse the whole linked list
 	
 	// ** what if I removed a thread that was at the end
@@ -112,77 +115,28 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 	// what if I keep removing from front s.t. frontpt == endpt
 	// what if I keep removing from the end s.t. frontpt == endpt
 	
-	if(semaPt->Front == NULL)
+	if(semaPt->FrontPt == NULL)
 	{	// LL is empty, return
 		return NULL;
 	}
 	
-	temp = semaPt->Front;	
+	temp = semaPt->FrontPt;	
 	tempHighPri = temp->Priority;
 	while(temp != NULL)
 	{
-		if(tempHighPri > temp->priority)
+		if(tempHighPri > temp->Priority)
 		{	// we found a higher priority thread,
-			tempHighPri = temp->priority; // update tempHighPri 
+			// this gets the longest waiting highest priority thread since it picks only the 1st
+			// thread at the highest priority level
+			tempHighPri = temp->Priority; // update tempHighPri 
 			wakeupThread = temp; // wakeupThread(holds highest pri thread we found at current time)
-		}
+		} 
 		temp = temp->next;
 	}
 	// we now have the highest priority thread, return thread & update LL
 	// I need it to be doubly linked to get the previous
-	
-	if(wakeupThread == semaPt->First) // what is there was only one element in the list
-	{ // don't want to set the previous node to the next node since its not circular LL
-		semaPt->First = wakeupThread->next; // update First to point to the new head of the LL
-		semaPt->First->previous = NULL;
-		
-	}
-	// if there are two nodes and I remove the 1st one
-	else if()
-	{
-
-			
-	}
-	// if there are two nodes and I remove the 2nd one
-	else if()
-	{
-		
-	}
-	// if there are 3 nodes and I remove the 1st one
-	else if()
-	{
-		
-		
-	}
-	// if there are 3 nodes and I remove the 2nd one
-	else if()
-	{
-		
-		
-	}
-	else
-	{
-		wakeupThread->previous->next = wakeupThread->next; // prev point to next
-		wakeupThread->next->previous = wakeupThread->previous; // next point back to previous
-	}
-	
-#else	// round robin
-	if(semaPt->FrontPt == NULL)
-	{ // the list is empty, there is nothing to signal
-		return NULL;
-	}
-	else if(semaPt->FrontPt == semaPt->EndPt)
-	{ // the list had only one element in it, remove it then set the Front and End ptrs to NULL
-		wakeupThread = semaPt->FrontPt;
-		semaPt->FrontPt = NULL;
-		semaPt->EndPt = NULL;
-	}
-	else// if(semaPt->FrontPt->next // there are atleast 2 elements in it
-	{
-		wakeupThread = semaPt->FrontPt;
-		semaPt->FrontPt = semaPt->FrontPt->next; // update the new front of the LL after removing the thread we want
-	}
-#endif
+	linkListStatus = LLRemove(&semaPt->FrontPt,wakeupThread,&semaPt->EndPt);
+	// returns 1 if empty after removal 0 if not empty after removal
 	
 	return wakeupThread;
 }

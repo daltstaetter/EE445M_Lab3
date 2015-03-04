@@ -21,7 +21,14 @@ extern void(*HandlerTaskArray[12])(void);
 #define TIME_500US  (TIME_1MS/2)  
 #define TIME_250US  (TIME_1MS/5)  
 
+
 typedef struct tcb tcbType;
+
+#define NUMPRI 8
+//Priority Array of Round-Robin Linked Lists
+tcbType* FrontOfPriLL[NUMPRI];
+tcbType* EndOfPriLL[NUMPRI];
+uint32_t HighestPriority;
 
 // feel free to change the type of semaphore, there are lots of good solutions
 struct  Sema4{
