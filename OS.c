@@ -34,17 +34,9 @@ void StartOS(void);
 #define NUMPRI 8
 #define STACKSIZE 128
 
-<<<<<<< HEAD
-struct {
-		tcbType* PriorityArray[NUMPRI];
-		uint32_t NumThreads[NUMPRI];
-		tcbType* MostRecentlyAdded[NUMPRI];
-} PriStruct;
 
-=======
 tcbType* FrontOfPriLL[NUMPRI];
 tcbType* EndOfPriLL[NUMPRI];
->>>>>>> 7613c5329b5e2eca556d611d6cd594baba243d00
 uint32_t HighestPriority;
 
 tcbType tcbs[NUMTHREADS];
@@ -218,6 +210,7 @@ void OS_Signal(Sema4Type *semaPt)
 		
 		
 		wakeupThread->BlockedStatus = NULL; // now it shouldn't be skipped over in the scheduler since its no longer blocked
+		AddBackToTCB();
 #endif
 	}
 	EndCritical(status);

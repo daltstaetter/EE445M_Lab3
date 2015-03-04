@@ -78,7 +78,8 @@ void Sem4LLAdd(tcbType** ptFrontPt,tcbType* insert,tcbType** ptEndPt)
 		(*ptEndPt) = insert; // set the endpt to the element just inserted
 		
 		// added for the removing of the thread 
-		(*ptEndPt)->previous = *(ptFrontPt);
+		(*ptEndPt)->previous = *(ptFrontPt); // point the end back to the front
+		(*ptEndPt)->next = NULL; // set endPt->next to null
 		
 	}
 	else // general case when there is 2 or more elements and you add to a list, insert at the back for round robin
@@ -86,11 +87,6 @@ void Sem4LLAdd(tcbType** ptFrontPt,tcbType* insert,tcbType** ptEndPt)
 		(*ptEndPt)->next = insert; // add to end of the LL
 		insert->previous = (*ptEndPt); // point the inserted node (the new End) to the old end
 		insert->next = NULL; // mght be necessary if this ever becomes the fron of the list & we are checking for null
-		
-		
-		
-		
-		
 		(*ptEndPt) = insert; // update EndPt to be the new back of the list
 	}
 }
@@ -133,12 +129,35 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 	// we now have the highest priority thread, return thread & update LL
 	// I need it to be doubly linked to get the previous
 	
-	if(wakeupThread == semaPt->First)
+	if(wakeupThread == semaPt->First) // what is there was only one element in the list
 	{ // don't want to set the previous node to the next node since its not circular LL
 		semaPt->First = wakeupThread->next; // update First to point to the new head of the LL
+		semaPt->First->previous = NULL;
 		
 	}
-	else if(
+	// if there are two nodes and I remove the 1st one
+	else if()
+	{
+
+			
+	}
+	// if there are two nodes and I remove the 2nd one
+	else if()
+	{
+		
+	}
+	// if there are 3 nodes and I remove the 1st one
+	else if()
+	{
+		
+		
+	}
+	// if there are 3 nodes and I remove the 2nd one
+	else if()
+	{
+		
+		
+	}
 	else
 	{
 		wakeupThread->previous->next = wakeupThread->next; // prev point to next
