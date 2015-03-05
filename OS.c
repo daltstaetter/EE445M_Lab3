@@ -239,6 +239,7 @@ void OS_Signal(Sema4Type *semaPt)
 // input:  pointer to a binary semaphore
 // output: none
 void OS_bWait(Sema4Type *semaPt){
+	int32_t priority;
 #ifdef LAB2	
 	OS_DisableInterrupts();
 	while(semaPt->Value == 0)
