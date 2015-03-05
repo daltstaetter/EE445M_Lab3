@@ -58,7 +58,7 @@ PendSV_Handler
     STR     SP, [R1]           ; 5) Save SP into TCB
 	
 	LDR   	R2, =ProxyChange
-	LDR		R3, [R2]			;R3 has PriorityChange
+	LDR		R3, [R2]			;R3 has ProxyChange
 	CMP		R3, #0
 	BNE		JumpToHigher
 	LDR R1, [R1,#4]			   ; R1 = RunPt, [R1,#4] = RunPt->next

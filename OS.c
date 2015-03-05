@@ -28,8 +28,14 @@ void StartOS(void);
 
 #define FREE 0
 #define USED 1
+
 #define BLOCKED 1
 #define NBLOCKED 0
+
+#define NORMALRR 0						//next thread will be next tcb in linked list
+#define JMP2HIGHERPRI	1				//next thread will be one at a higher priority
+#define JMPOVER	2							//current thread was blocked, put to sleep, or killed, so jump to the thread after it
+
 #define NUMTHREADS 12
 #define STACKSIZE 128
 
@@ -153,13 +159,14 @@ void OS_InitSemaphore(Sema4Type *semaPt, long value){
 void OS_Wait(Sema4Type *semaPt){
 	
 	int32_t status;
+	uint32_t priority;
 	status = StartCritical(); // save I bit 
-	OS_DisableInterrupts(); // make sure interrupts are disabled
+	//OS_DisableInterrupts(); // make sure interrupts are disabled
 	semaPt->Value = semaPt->Value - 1;
 
 	if(semaPt->Value < 0){ // add to sema4's blocking linked list
 		RunPt->BlockedStatus=semaPt;
-		OS_DisableInterrupts();
+		//OS_DisableInterrupts();
 /*		if(semaPt->FrontPt == NULL) // when the sem4 LL is initially empty and you add the first element
 //		{
 //			semaPt->FrontPt = RunPt;
@@ -176,10 +183,15 @@ void OS_Wait(Sema4Type *semaPt){
 //			semaPt->EndPt = RunPt; // update EndPt to be the new back of the list
 //		}
 */
+		priority = RunPt->Priority;
+		NextThread = RunPt->next;					//Store the next pointer in the proxy thread
+		LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority]);		//remove the thread from the active list
 		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
-		OS_Suspend(0); // I need to restore the I bit after the PendSV Handler context switch
+		EndCritical(status);			//restore I bit, enabling interrupts
+		OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
 	}
-	OS_EnableInterrupts();
+	EndCritical(status);
+	//OS_EnableInterrupts();
 }	
 
 // DA 3/2
@@ -196,12 +208,12 @@ void OS_Signal(Sema4Type *semaPt)
 	int32_t status;
 	
 	status = StartCritical(); // save I bit 
-	OS_DisableInterrupts(); // make sure interrupts are disabled
+	//OS_DisableInterrupts(); // make sure interrupts are disabled
 	semaPt->Value = semaPt->Value + 1;
 	
 	if(semaPt->Value <= 0)
 	{		
-		// wakeup highest priority thread & unblock it
+		// wakeup highest priority thread & unblock it	(removes from semaphore linked list)
 		wakeupThread = Sem4LLARemove(semaPt);
 		
 		// add to the priority linked list for that priority level of wakeupThread.
@@ -213,7 +225,8 @@ void OS_Signal(Sema4Type *semaPt)
 		
 		if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
 		{
-			OS_Suspend(0);
+			EndCritical(status);
+			OS_Suspend(JMP2HIGHERPRI);
 		}
 	}
 	EndCritical(status);
@@ -504,11 +517,11 @@ void OS_Sleep(unsigned long sleepTime){
 			LLAdd(&FrontOfSlpLL,RunPt,&EndOfSlpLL);			//Add the thread to the sleeping list
 			HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
 			EndCritical(status);
-			OS_Suspend(1); //since the highest priority thread is the last at that priority, re-evaluate highest priority
+			OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
 		}
 		LLAdd(&FrontOfSlpLL,RunPt,&EndOfSlpLL);			//Add the thread to the sleeping lis
 		EndCritical(status);
-		OS_Suspend(2);	//there are still threads at this priority level, so run normal round-robin
+		OS_Suspend(JMPOVER);	//there are still threads at this priority level, so run normal round-robin
 	}
 }
 
@@ -529,11 +542,11 @@ void OS_Kill(void){
 	if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])){		//Linked list is empty at this priority
 		HighestPriority&=~(1<<(31-priority));		//indicate that there are no threads at this priority anymore
 		EndCritical(status);
-		OS_Suspend(1);		//There are no more threads at this priority, re-evaluate the highest priority
+		OS_Suspend(JMP2HIGHERPRI);		//There are no more threads at this priority, re-evaluate the highest priority
 	}
 	EndCritical(status);
 	//Since there are still threads at this priority, keep running threads at this priority
-	OS_Suspend(2);
+	OS_Suspend(JMPOVER);
 }
 
 // ******** OS_Suspend ************
@@ -966,10 +979,10 @@ void SysTick_Handler(void)
 	
 	if(OS_WakeUpSleeping()){		//If a change in highest priority occured, suspend with re-evaluation of highest priority
 		EndCritical(status);
-		OS_Suspend(1);
+		OS_Suspend(JMP2HIGHERPRI);
 	}
 	EndCritical(status);
-	OS_Suspend(0); 
+	OS_Suspend(NORMALRR); 
 }
 	
 
