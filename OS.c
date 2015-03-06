@@ -256,20 +256,14 @@ void OS_bWait(Sema4Type *semaPt){
 	int32_t status;
 	uint32_t priority;
 	status = StartCritical(); // save I bit 
-	//OS_DisableInterrupts(); // make sure interrupts are disabled
-	//semaPt->Value = 0;
 
-	// always blocks since it is binary.
-	//if(semaPt->Value == 0){ // add to sema4's blocking linked list
-		priority = RunPt->Priority;
-		NextThread = RunPt->next;					//Store the next pointer in the proxy thread
-		LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority]);		//remove the thread from the active list
-		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
-		EndCritical(status);			//restore I bit, enabling interrupts
-		OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
-	//}
-	EndCritical(status);
-	//OS_EnableInterrupts();
+	priority = RunPt->Priority;
+	NextThread = RunPt->next;					//Store the next pointer in the proxy thread
+	LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority]);		//remove the thread from the active list
+	Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+	EndCritical(status);			//restore I bit, enabling interrupts
+	OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThrea
+
 	
 #endif
 }
@@ -288,29 +282,23 @@ void OS_bSignal(Sema4Type *semaPt)
 	tcbType* wakeupThread;
 	int32_t status;
 	
-	status = StartCritical(); // save I bit 
-	OS_DisableInterrupts(); // make sure interrupts are disabled
-//	semaPt->Value = 1;
+	status = StartCritical(); // save I bit 	
+	// wakeup highest priority thread & unblock it	(removes from semaphore linked list)
+	wakeupThread = Sem4LLARemove(semaPt);
 	
-	// it will always wakeup since its a binary signal 
-//	if(semaPt->Value <= 0)
-	{		
-		// wakeup highest priority thread & unblock it
-		wakeupThread = Sem4LLARemove(semaPt);
-		
-		// add to the priority linked list for that priority level of wakeupThread.
-		LLAdd(&FrontOfPriLL[wakeupThread->Priority],wakeupThread,&EndOfPriLL[wakeupThread->Priority]);
-		
-		// unblock the thread
-		// has already been added to scheduler & is now unblocked
-		wakeupThread->BlockedStatus = NULL;
-		
-		if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
-		{
-			OS_Suspend(0);
-		}
+	// add to the priority linked list for that priority level of wakeupThread.
+	LLAdd(&FrontOfPriLL[wakeupThread->Priority],wakeupThread,&EndOfPriLL[wakeupThread->Priority]);
+	
+	// unblock the thread
+	// has already been added to scheduler & is now unblocked
+	wakeupThread->BlockedStatus = NULL;
+	
+	if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
+	{
+		EndCritical(status);
+		OS_Suspend(JMP2HIGHERPRI);
 	}
-	EndCritical(status);
+	EndCritical(status);	
 #endif
 }
 
