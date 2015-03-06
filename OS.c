@@ -107,7 +107,7 @@ void SetInitialStack(int i){
 void OS_Init(void){
 	uint32_t delay;
 	OS_DisableInterrupts();
-  PLL_Init();                 // set processor clock to 80 MHz
+  //PLL_Init();                 // set processor clock to 80 MHz
 	SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R1;   // activate timer1
 	delay = SYSCTL_RCGCTIMER_R;   // allow time to finish activating
 	TIMER1_CTL_R &= ~TIMER_CTL_TAEN; // disable TimerA1
@@ -166,26 +166,16 @@ void OS_Wait(Sema4Type *semaPt){
 
 	if(semaPt->Value < 0){ // add to sema4's blocking linked list
 		RunPt->BlockedStatus=semaPt;
-		//OS_DisableInterrupts();
-/*		if(semaPt->FrontPt == NULL) // when the sem4 LL is initially empty and you add the first element
-//		{
-//			semaPt->FrontPt = RunPt;
-//			semaPt->EndPt = RunPt;
-//		}
-//		else if (semaPt->FrontPt == semaPt->EndPt) // when there is one element in LL and you add the 2nd
-//		{
-//			semaPt->FrontPt->next = RunPt;
-//			semaPt->EndPt = RunPt;
-//		}
-//		else // general case when there is 2 or more elements and you add to a list, insert at the back for round robin
-//		{
-//			semaPt->EndPt->next = RunPt; // add to back up LL
-//			semaPt->EndPt = RunPt; // update EndPt to be the new back of the list
-//		}
-*/
+
 		priority = RunPt->Priority;
 		NextThread = RunPt->next;					//Store the next pointer in the proxy thread
-		LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority]);		//remove the thread from the active list
+		if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])) //remove the thread from the active list
+		{	// this was the last thread removed from the list at that priority level
+			Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+			HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
+			EndCritical(status);
+			OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
+		}
 		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
 		EndCritical(status);			//restore I bit, enabling interrupts
 		OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
@@ -253,13 +243,21 @@ void OS_bWait(Sema4Type *semaPt){
 	semaPt->Value = 0;
 	OS_EnableInterrupts();
 #else
-	
+	// need to check if the removed thread is the last one at that priority, if it is, change the highestPriority variable
 	int32_t status;
 	status = StartCritical(); // save I bit 
 
 	priority = RunPt->Priority;
 	NextThread = RunPt->next;					//Store the next pointer in the proxy thread
-	LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority]);		//remove the thread from the active list
+	
+	if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])) //remove the thread from the active list
+	{	// this was the last thread removed from the list at that priority level
+		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+		HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
+		EndCritical(status);
+		OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
+	}	
+	
 	Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
 	EndCritical(status);			//restore I bit, enabling interrupts
 	OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThrea
