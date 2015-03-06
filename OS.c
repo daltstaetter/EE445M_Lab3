@@ -254,18 +254,22 @@ void OS_bWait(Sema4Type *semaPt){
 #else
 	
 	int32_t status;
+	uint32_t priority;
 	status = StartCritical(); // save I bit 
-	OS_DisableInterrupts(); // make sure interrupts are disabled
+	//OS_DisableInterrupts(); // make sure interrupts are disabled
 	//semaPt->Value = 0;
 
 	// always blocks since it is binary.
 	//if(semaPt->Value == 0){ // add to sema4's blocking linked list
-		RunPt->BlockedStatus = semaPt;
-		OS_DisableInterrupts();
+		priority = RunPt->Priority;
+		NextThread = RunPt->next;					//Store the next pointer in the proxy thread
+		LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority]);		//remove the thread from the active list
 		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
-		OS_Suspend(0); // I need to restore the I bit after the PendSV Handler context switch
-//	}
-	OS_EnableInterrupts();
+		EndCritical(status);			//restore I bit, enabling interrupts
+		OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
+	//}
+	EndCritical(status);
+	//OS_EnableInterrupts();
 	
 #endif
 }
