@@ -495,7 +495,7 @@ int Switch2Count=0;
 	 Switch2Count++;
  }
 
-int main(void){  // Testmain2
+int Testmain2(void){  // Testmain2
 
 	OS_Init();           // initialize, disable interrupts
 	//OS_MailBox_Init();
@@ -575,14 +575,14 @@ void DoNothing(void){
 	;
 }
       
-int Testmain3(void){   // Testmain3
+int main(void){   // Testmain3
   Count4 = 0;          
   OS_Init();           // initialize, disable interrupts
 	PortE_Init();
 // Count2 + Count5 should equal Count1
   NumCreated = 0 ;
-  OS_AddSwitchTasks(&BackgroundThread5c,&DoNothing,2);
-  NumCreated += OS_AddThread(&Thread2c,128,2); 
+  OS_AddSwitchTasks(&BackgroundThread5c,&DoNothing,3);
+  NumCreated += OS_AddThread(&Thread2c,128,3); 
   NumCreated += OS_AddThread(&Thread3c,128,3); 
   NumCreated += OS_AddThread(&Thread4c,128,3); 
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here

@@ -128,10 +128,9 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 		return NULL;
 	}
 	
-	temp = semaPt->FrontPt;	
-	tempHighPri = temp->Priority;
-	while(temp != NULL)
+	for(temp = semaPt->FrontPt; temp!=semaPt->EndPt; temp = temp->next)
 	{
+		tempHighPri = temp->Priority;
 		if(tempHighPri > temp->Priority)
 		{	// we found a higher priority thread,
 			// this gets the longest waiting highest priority thread since it picks only the 1st
@@ -139,7 +138,9 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 			tempHighPri = temp->Priority; // update tempHighPri 
 			wakeupThread = temp; // wakeupThread(holds highest pri thread we found at current time)
 		} 
-		temp = temp->next;
+	}
+	if(tempHighPri > semaPt->EndPt->Priority){
+		wakeupThread=temp;		
 	}
 	// we now have the highest priority thread, return thread & update LL
 	// I need it to be doubly linked to get the previous

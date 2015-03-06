@@ -537,7 +537,7 @@ void OS_Kill(void){
 		OS_Suspend(JMP2HIGHERPRI);		//There are no more threads at this priority, re-evaluate the highest priority
 	}
 	EndCritical(status);
-	//Since there are still threads at this priority, keep running threads at this priority
+	//the running thread was killed, move to the next thread in the round robin
 	OS_Suspend(JMPOVER);
 }
 
