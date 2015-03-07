@@ -36,7 +36,7 @@ void StartOS(void);
 #define JMP2HIGHERPRI	1				//next thread will be one at a higher priority
 #define JMPOVER	2							//current thread was blocked, put to sleep, or killed, so jump to the thread after it
 
-#define NUMTHREADS 12
+#define NUMTHREADS 20
 #define STACKSIZE 128
 
 
@@ -161,27 +161,24 @@ void OS_Wait(Sema4Type *semaPt){
 	int32_t status;
 	uint32_t priority;
 	status = StartCritical(); // save I bit 
-	//OS_DisableInterrupts(); // make sure interrupts are disabled
 	semaPt->Value = semaPt->Value - 1;
-
 	if(semaPt->Value < 0){ // add to sema4's blocking linked list
 		RunPt->BlockedStatus=semaPt;
-
 		priority = RunPt->Priority;
 		NextThread = RunPt->next;					//Store the next pointer in the proxy thread
 		if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])) //remove the thread from the active list
 		{	// this was the last thread removed from the list at that priority level
-			Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+			LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
 			HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
 			EndCritical(status);
 			OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
+		}else{
+			LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+			EndCritical(status);			//restore I bit, enabling interrupts
+			OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
 		}
-		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
-		EndCritical(status);			//restore I bit, enabling interrupts
-		OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
 	}
 	EndCritical(status);
-	//OS_EnableInterrupts();
 }	
 
 // DA 3/2
@@ -198,21 +195,18 @@ void OS_Signal(Sema4Type *semaPt)
 	int32_t status;
 	
 	status = StartCritical(); // save I bit 
-	//OS_DisableInterrupts(); // make sure interrupts are disabled
 	semaPt->Value = semaPt->Value + 1;
-	
 	if(semaPt->Value <= 0)
 	{		
-		// wakeup highest priority thread & unblock it	(removes from semaphore linked list)
 		wakeupThread = Sem4LLARemove(semaPt);
-		
+		if(wakeupThread==NULL){
+			EndCritical(status);
+			return;
+		}
 		// add to the priority linked list for that priority level of wakeupThread.
+		LLRemove(&semaPt->FrontPt,wakeupThread,&semaPt->EndPt);
 		LLAdd(&FrontOfPriLL[wakeupThread->Priority],wakeupThread,&EndOfPriLL[wakeupThread->Priority]);
-		
-		// unblock the thread
-		// has already been added to scheduler & is now unblocked
 		wakeupThread->BlockedStatus = NULL;
-		
 		if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
 		{
 			EndCritical(status);
@@ -245,24 +239,28 @@ void OS_bWait(Sema4Type *semaPt){
 	// need to check if the removed thread is the last one at that priority, if it is, change the highestPriority variable
 	int32_t status;
 	uint32_t priority;
-	status = StartCritical(); // save I bit 
-
+	
+	status = StartCritical(); // save I bit
 	priority = RunPt->Priority;
 	NextThread = RunPt->next;					//Store the next pointer in the proxy thread
 	
-	if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])) //remove the thread from the active list
-	{	// this was the last thread removed from the list at that priority level
-		Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
-		HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
-		EndCritical(status);
-		OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
-	}	
-	
-	Sem4LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
-	EndCritical(status);			//restore I bit, enabling interrupts
-	OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThrea
-
-	
+	//if semaphore is taken(equal to zero) then block the thread
+	if(semaPt->Value==0){
+		RunPt->BlockedStatus = semaPt;
+		if(LLRemove(&FrontOfPriLL[priority],RunPt,&EndOfPriLL[priority])) //remove the thread from the active list
+		{	// this was the last thread removed from the list at that priority level
+			LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+			HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
+			EndCritical(status);
+			OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
+		}	else{
+			LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
+			EndCritical(status);			//restore I bit, enabling interrupts
+			OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
+		}
+	}
+	semaPt->Value = 0; //otherwise take the semaphore and continue
+	EndCritical(status);
 #endif
 }
 
@@ -281,9 +279,14 @@ void OS_bSignal(Sema4Type *semaPt)
 	int32_t status;
 	
 	status = StartCritical(); // save I bit 	
+	semaPt->Value = 1;    //signal that the semaphore is free
 	// wakeup highest priority thread & unblock it	(removes from semaphore linked list)
 	wakeupThread = Sem4LLARemove(semaPt);
-	
+	if(wakeupThread==NULL){
+		EndCritical(status);
+		return;
+	}
+	LLRemove(&semaPt->FrontPt,wakeupThread,&semaPt->EndPt);
 	// add to the priority linked list for that priority level of wakeupThread.
 	LLAdd(&FrontOfPriLL[wakeupThread->Priority],wakeupThread,&EndOfPriLL[wakeupThread->Priority]);
 	
@@ -453,7 +456,7 @@ void GPIOPortF_Handler(void){
 			(*PF4Task)();		
 		}
 		GPIO_PORTF_IM_R &= ~pin;	//disarm interrupt on PF4
-		if(OS_AddThread(&DebounceSW1Task,128,1)==0){
+		if(OS_AddThread(&DebounceSW1Task,128,3)==0){
 			GPIO_PORTF_IM_R |= pin;
 		}
 	}
@@ -462,28 +465,12 @@ void GPIOPortF_Handler(void){
 			(*PF0Task)();
 		}
 		GPIO_PORTF_IM_R &= ~pin;	//disarm interrupt on PF0
-		if(OS_AddThread(&DebounceSW2Task,128,1)==0){
+		if(OS_AddThread(&DebounceSW2Task,128,3)==0){
 			GPIO_PORTF_IM_R |= pin;
 		}
 	}
 }
-//Ignore for now
-//******** OS_AddSW2Task *************** 
-// add a background task to run whenever the SW2 (PF0) button is pushed
-// Inputs: pointer to a void/void background function
-//         priority 0 is highest, 5 is lowest
-// Outputs: 1 if successful, 0 if this thread can not be added
-// It is assumed user task will run to completion and return
-// This task can not spin block loop sleep or kill
-// This task can call issue OS_Signal, it can call OS_AddThread
-// This task does not have a Thread ID
-// In lab 2, this function can be ignored
-// In lab 3, this command will be called will be called 0 or 1 times
-// In lab 3, there will be up to four background threads, and this priority field 
-//           determines the relative priority of these four threads
-int OS_AddSW2Task(void(*task)(void), unsigned long priority){
-	;
-}
+
 
 // DA 2/20
 // ******** OS_Sleep ************
@@ -922,39 +909,57 @@ static int OS_WakeUpSleeping(void){
 	tcbType* sleepIterator;
 	uint32_t priority;
 	uint32_t priChange=0;
-	if(FrontOfSlpLL==NULL){return 0;}
-	sleepIterator = EndOfSlpLL;
-	//Decrement the sleep counter of the last element in the sleeping thread
-	sleepIterator->SleepCtr -= SYSTICK_PERIOD;
-	//Move the last element from the sleeping list to the active list if it is done sleeping
-	if(sleepIterator->SleepCtr <= 0){
-			priority = sleepIterator->Priority;
-			//If the thread being added is the first of its priority, see if this priority is higher than the current highest priority
-			//If it is, indicate a change in highest priority
-			LLRemove(&FrontOfSlpLL,sleepIterator,&EndOfSlpLL);
-			if(LLAdd(&FrontOfPriLL[priority],sleepIterator,&EndOfPriLL[priority])){
-				if(1<<(31-priority) > HighestPriority){
-					priChange=1;
-				}
-				HighestPriority|=1<<(31-priority);
-			}
-	}	
-	//Iterate through the rest of the sleeping threads, decrementing sleeping counters
-	if(FrontOfSlpLL==NULL){return priChange;}		
-	for(sleepIterator=FrontOfSlpLL; sleepIterator->previous!=EndOfSlpLL; sleepIterator=sleepIterator->next){
-		sleepIterator->SleepCtr -= SYSTICK_PERIOD;
-		if(sleepIterator->SleepCtr <= 0){
-			priority = sleepIterator->Priority;
-			//If the thread being added is the first of its priority, see if this priority is higher than the current highest priority
-			//If it is, indicate a change in highest priority
+	tcbType* wokenThreads[NUMTHREADS-1];
+	uint32_t i=0,k=0;
+	
+	if(FrontOfSlpLL==NULL){
+		return 0;
+	}   //Sleeping list is empty
+	sleepIterator = FrontOfSlpLL;
+	if(FrontOfSlpLL==EndOfSlpLL){				//Sleeping list has one element in it
+		FrontOfSlpLL->SleepCtr -= SYSTICK_PERIOD;		//decrement sleep counter
+		if(FrontOfSlpLL->SleepCtr <= 0){		//If done sleeping move from sleeping linked list to active list
+			priority = FrontOfSlpLL->Priority;
 			LLRemove(&FrontOfSlpLL,sleepIterator,&EndOfSlpLL);
 			if(LLAdd(&FrontOfPriLL[priority],sleepIterator,&EndOfPriLL[priority])){			
-				if(1<<(31-priority) > HighestPriority){
-					priChange=1;
+				if(1<<(31-priority) > HighestPriority){			//Indicate if priority change occurred
+					HighestPriority|=1<<(31-priority);
+					return 1;
 				}
-				HighestPriority|=1<<(31-priority);
+			}else return 0;
+		} else return 0;
+		
+	}else{
+		
+		//More than 1 element in sleeping list
+		for(sleepIterator=FrontOfSlpLL->next; sleepIterator!=FrontOfSlpLL; sleepIterator=sleepIterator->next){
+			sleepIterator->SleepCtr -= SYSTICK_PERIOD;
+			if(sleepIterator->SleepCtr <= 0){
+				wokenThreads[i++]=sleepIterator;
+				priority = sleepIterator->Priority;
+			}	
+		}
+		for(k=0; k<i; k++){
+			LLRemove(&FrontOfSlpLL,wokenThreads[k],&EndOfSlpLL);
+			if(LLAdd(&FrontOfPriLL[priority],wokenThreads[k],&EndOfPriLL[priority])){			
+				if(1<<(31-priority) > HighestPriority){
+					HighestPriority|=1<<(31-priority);
+					priChange = 1;
+				}
 			}
-		}	
+		}
+		sleepIterator = FrontOfSlpLL;
+		FrontOfSlpLL->SleepCtr -= SYSTICK_PERIOD;		//decrement sleep counter
+		if(FrontOfSlpLL->SleepCtr <= 0){		//If done sleeping move from sleeping linked list to active list
+			priority = FrontOfSlpLL->Priority;
+			LLRemove(&FrontOfSlpLL,sleepIterator,&EndOfSlpLL);
+			if(LLAdd(&FrontOfPriLL[priority],sleepIterator,&EndOfPriLL[priority])){			
+				if(1<<(31-priority) > HighestPriority){			//Indicate if priority change occurred
+					HighestPriority|=1<<(31-priority);
+					priChange = 1;
+				}
+			}else priChange = 0;
+		} else priChange = 0;
 	}
 	return priChange;
 }

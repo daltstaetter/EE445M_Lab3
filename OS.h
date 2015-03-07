@@ -24,7 +24,7 @@ extern void(*HandlerTaskArray[12])(void);
 
 typedef struct tcb tcbType;
 
-#define NUMPRI 8
+#define NUMPRI 32
 //Priority Array of Round-Robin Linked Lists
 extern tcbType* FrontOfPriLL[NUMPRI];
 extern tcbType* EndOfPriLL[NUMPRI];

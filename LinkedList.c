@@ -123,15 +123,20 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 	// what if I keep removing from front s.t. frontpt == endpt
 	// what if I keep removing from the end s.t. frontpt == endpt
 	
-	if(semaPt->FrontPt == NULL)
+	if(semaPt->FrontPt == NULL)						//no elements in the blocked list
 	{	// LL is empty, return
 		return NULL;
 	}
+	wakeupThread = semaPt->FrontPt;
+	if(semaPt->FrontPt==semaPt->EndPt){			//one thread in the blocked list
+		linkListStatus = LLRemove(&semaPt->FrontPt,wakeupThread,&semaPt->EndPt);
+		return wakeupThread;
+	}		
 	
-	for(temp = semaPt->FrontPt; temp!=semaPt->EndPt; temp = temp->next)
+	tempHighPri=semaPt->FrontPt->Priority;
+	for(temp = semaPt->FrontPt; temp!=semaPt->EndPt; temp = temp->next)		//more than 1 element in the blocked list
 	{
-		tempHighPri = temp->Priority;
-		if(tempHighPri > temp->Priority)
+		if(tempHighPri < temp->Priority)
 		{	// we found a higher priority thread,
 			// this gets the longest waiting highest priority thread since it picks only the 1st
 			// thread at the highest priority level
@@ -139,12 +144,13 @@ tcbType* Sem4LLARemove(Sema4Type *semaPt)
 			wakeupThread = temp; // wakeupThread(holds highest pri thread we found at current time)
 		} 
 	}
-	if(tempHighPri > semaPt->EndPt->Priority){
+	if(tempHighPri < semaPt->EndPt->Priority){
 		wakeupThread=temp;		
+	}else{
+		wakeupThread = semaPt->EndPt;
 	}
 	// we now have the highest priority thread, return thread & update LL
 	// I need it to be doubly linked to get the previous
-	linkListStatus = LLRemove(&semaPt->FrontPt,wakeupThread,&semaPt->EndPt);
 	// returns 1 if empty after removal 0 if not empty after removal
 	
 	return wakeupThread;

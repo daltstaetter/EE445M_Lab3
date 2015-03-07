@@ -369,18 +369,27 @@ int Testmain_final(void){
 
 
 //LinkedList Test Code
-int Testmain_LL(void){
+int TestmainLL(void){
 	tcbType* frontLL1=NULL;
 	tcbType* endLL1=NULL;
+	tcbType* semaFront=NULL;
+	tcbType* semaEnd = NULL;
 	tcbType tcbs[3];
 	int i;
 	for(i=0;i<3;i++){
 		tcbs[i].ID=i;
 		LLAdd(&frontLL1,&tcbs[i],&endLL1);
 	}
-  for(i=0;i<3;i++){
-		LLRemove(&frontLL1,&tcbs[i],&endLL1);
-	}
+	LLRemove(&frontLL1,&tcbs[1],&endLL1);
+	LLAdd(&semaFront,&tcbs[1],&semaEnd);
+	LLRemove(&frontLL1,&tcbs[2],&endLL1);
+	LLAdd(&semaFront,&tcbs[2],&semaEnd);
+	LLRemove(&semaFront,&tcbs[1],&semaEnd);
+	LLAdd(&frontLL1,&tcbs[1],&endLL1);
+	LLRemove(&semaFront,&tcbs[2],&semaEnd);
+	LLAdd(&frontLL1,&tcbs[2],&endLL1);
+ 
+ 
 	while(1){;}
 }
 
@@ -448,33 +457,38 @@ int Testmain1(void){  // Testmain1
 // no timer interrupts
 // no switch interrupts
 // no ADC serial port or LCD output
-//no calls to semaphores
+//no calls to semaphoreshyp
+Sema4Type Ready2;
 void Thread1b(void){
 	int i;
   Count1 = 0;    
-	int mail = 0x121212;
+	OS_InitSemaphore(&Ready2,0);
   for(;;){
     PE0 ^= 0x01;       // heartbeat
     Count1++;
+		OS_bSignal(&Ready2);
   }
 }
-int Mail_recv = 0;
+
 void Thread2b(void){
 	int i;
 	i = 0;
 	Count2 = 0;
   for(;;){
+		OS_bWait(&Ready2);
     PE1 ^= 0x02;       // heartbeat
     Count2++;
+		OS_bSignal(&Ready2);
   }
 }
 void Thread3b(void){
 	int i;
   Count3 = 0;          
   for(;;){
+		OS_bWait(&Ready2);
     PE2 ^= 0x04;       // heartbeat
     Count3++;
-		OS_Sleep(50);
+		OS_bSignal(&Ready2);
   }
 }
 void Thread4b(void){
@@ -506,7 +520,7 @@ int Testmain2(void){  // Testmain2
   NumCreated += OS_AddThread(&Thread1b,128,1); 
   NumCreated += OS_AddThread(&Thread2b,128,1); 
   NumCreated += OS_AddThread(&Thread3b,128,1);
-	//OS_AddSwitchTasks(&DoNothing1,&DoNothing2,0);	
+	OS_AddSwitchTasks(&DoNothing1,&DoNothing2,0);	
   // Count1 Count2 Count3 should be equal on average
   // counts are larger than testmain1
  
@@ -575,13 +589,13 @@ void DoNothing(void){
 	;
 }
       
-int main(void){   // Testmain3
+int Testmain3(void){   // Testmain3
   Count4 = 0;          
   OS_Init();           // initialize, disable interrupts
 	PortE_Init();
 // Count2 + Count5 should equal Count1
   NumCreated = 0 ;
-  OS_AddSwitchTasks(&BackgroundThread5c,&DoNothing,3);
+  OS_AddSwitchTasks(&BackgroundThread5c,&DoNothing,0);
   NumCreated += OS_AddThread(&Thread2c,128,3); 
   NumCreated += OS_AddThread(&Thread3c,128,3); 
   NumCreated += OS_AddThread(&Thread4c,128,3); 
@@ -633,7 +647,7 @@ void Thread3d(void){
 void Thread4d(void){ int i;
   for(i=0;i<640;i++){
     Count4++;
-    OS_Sleep(1);
+    OS_Sleep(4);
 		PE3^=0x08;
   }
   OS_Kill();
@@ -648,15 +662,16 @@ void BackgroundThread5d(void){   // called when Select button pushed
 	PE4^=0x10;
   NumCreated += OS_AddThread(&Thread4d,128,3); 
 }
-int Testmain4(void){   // Testmain4
+int main(void){   // Testmain4
   Count4 = 0;          
   OS_Init();           // initialize, disable interrupts
+	PortE_Init();
   NumCreated = 0 ;
   OS_AddPeriodicThread(&BackgroundThread1d,4,1000,0); //Timer
 
   OS_AddSwitchTasks(&BackgroundThread5d,&doNothing,2);
 
-  NumCreated += OS_AddThread(&Thread2d,128,2); 
+  NumCreated += OS_AddThread(&Thread2d,128,3); 
   NumCreated += OS_AddThread(&Thread3d,128,3); 
   NumCreated += OS_AddThread(&Thread4d,128,3); 
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
