@@ -107,7 +107,7 @@ void SetInitialStack(int i){
 void OS_Init(void){
 	uint32_t delay;
 	OS_DisableInterrupts();
-  //PLL_Init();                 // set processor clock to 80 MHz
+  PLL_Init();                 // set processor clock to 80 MHz
 	SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R1;   // activate timer1
 	delay = SYSCTL_RCGCTIMER_R;   // allow time to finish activating
 	TIMER1_CTL_R &= ~TIMER_CTL_TAEN; // disable TimerA1
@@ -898,7 +898,11 @@ void PF3_Toggle(void)
 		GPIO_PORTF_DATA_R ^= 0x08;
 }
 
-void Jitter(void){;}
+extern uint32_t MaxJitter, MaxJitterB;
+void Jitter(void){
+	printf("MaxJitterA: %d\n\r",MaxJitter);
+	printf("MaxJitterB: %d\n\r",MaxJitterB);
+}
  
 //********OS_WakeUpSleeping**********
 //Iterates through the sleeping linked list and decrements counters

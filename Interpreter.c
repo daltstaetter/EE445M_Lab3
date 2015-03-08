@@ -40,20 +40,7 @@
 
 void Interpreter(void);
 
-struct __FILE { int handle; /* Add whatever you need here */ };
-FILE __stdout;
-FILE __stdin;
 
-int fputc(int ch, FILE *f){
- UART_OutChar(ch);
- return (1);
-}
-int fgetc (FILE *f){
- return (UART_InChar());
-}
-int ferror(FILE *f){
- return EOF;
-} 
 
 
 //---------------------OutCRLF---------------------
