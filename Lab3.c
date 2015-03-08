@@ -735,11 +735,12 @@ void TaskB(void){       // called every pB in background
 int Testmain5(void){       // Testmain5 Lab 3
   PortE_Init();
   OS_Init();           // initialize, disable interrupts
+	UART_Init();
   NumCreated = 0 ;
   NumCreated += OS_AddThread(&Thread6,128,2); 
   NumCreated += OS_AddThread(&Thread7,128,1); 
-  OS_AddPeriodicThread(&TaskA,1,TIME_1MS,0);           // 1 ms, higher priority
-  OS_AddPeriodicThread(&TaskB,2,2*TIME_1MS,1);         // 2 ms, lower priority
+  OS_AddPeriodicThread(&TaskA,4,TIME_1MS,0);           // 1 ms, higher priority, Timer2
+  OS_AddPeriodicThread(&TaskB,6,2*TIME_1MS,1);         // 2 ms, lower priority, Timer3
  
   OS_Launch(TIME_2MS); // 2ms, doesn't return, interrupts enabled in here
   return 0;             // this never executes
