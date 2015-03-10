@@ -209,6 +209,7 @@ void OS_Signal(Sema4Type *semaPt)
 		wakeupThread->BlockedStatus = NULL;
 		if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
 		{
+			HighestPriority |= (1<<(31-wakeupThread->Priority));
 			EndCritical(status);
 			OS_Suspend(JMP2HIGHERPRI);
 		}
@@ -296,6 +297,7 @@ void OS_bSignal(Sema4Type *semaPt)
 	
 	if(wakeupThread->Priority < RunPt->Priority) // if awoken thread is higher priority than current thread, switch to it.
 	{
+		HighestPriority |= (1<<(31-wakeupThread->Priority));
 		EndCritical(status);
 		OS_Suspend(JMP2HIGHERPRI);
 	}
@@ -495,10 +497,11 @@ void OS_Sleep(unsigned long sleepTime){
 			HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
 			EndCritical(status);
 			OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
+		}else{
+			LLAdd(&FrontOfSlpLL,RunPt,&EndOfSlpLL);			//Add the thread to the sleeping lis
+			EndCritical(status);
+			OS_Suspend(JMPOVER);	//there are still threads at this priority level, so run normal round-robin
 		}
-		LLAdd(&FrontOfSlpLL,RunPt,&EndOfSlpLL);			//Add the thread to the sleeping lis
-		EndCritical(status);
-		OS_Suspend(JMPOVER);	//there are still threads at this priority level, so run normal round-robin
 	}
 }
 
@@ -520,10 +523,11 @@ void OS_Kill(void){
 		HighestPriority&=~(1<<(31-priority));		//indicate that there are no threads at this priority anymore
 		EndCritical(status);
 		OS_Suspend(JMP2HIGHERPRI);		//There are no more threads at this priority, re-evaluate the highest priority
+	}else{
+		EndCritical(status);
+		//the running thread was killed, move to the next thread in the round robin
+		OS_Suspend(JMPOVER);
 	}
-	EndCritical(status);
-	//the running thread was killed, move to the next thread in the round robin
-	OS_Suspend(JMPOVER);
 }
 
 // ******** OS_Suspend ************
