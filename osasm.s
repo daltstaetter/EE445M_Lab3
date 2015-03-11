@@ -32,6 +32,11 @@
 		EXTERN  HighestPriority  ;holds the bit mapping for each priority
 		EXTERN  ProxyThread
 		EXTERN  ProxyChange
+		EXTERN 	ThreadStart
+		EXTERN 	ThreadEnd
+		EXTERN	ThreadArray
+		EXTERN  ThreadCount
+		EXTERN  Timer1_TAILR_Ptr
         EXPORT  OS_DisableInterrupts
         EXPORT  OS_EnableInterrupts
         EXPORT  StartOS
@@ -61,14 +66,62 @@ PendSV_Handler
 	LDR		R3, [R2]			;R3 has ProxyChange
 	CMP		R3, #0
 	BNE		JumpToHigher
-	LDR R1, [R1,#4]			   ; R1 = RunPt, [R1,#4] = RunPt->next
+	LDR 	R1, [R1,#4]			   ; R1 = RunPt, [R1,#4] = RunPt->next
 	STR     R1, [R0]           ;    RunPt = R1 (RunPt = RunPt->next)
 	LDR     SP, [R1]           ; 7) new thread SP; SP = RunPt->sp;
+
+; profile information
+	LDR		R7, =ThreadArray
+	LDR		R8, =ThreadCount ; index of where we are in the array
+	LDR		R9, [R8]	; R9 = ThreadCount
+	CMP		R9, #400	; check if ThreadCount == 100*4bytes
+	BEQ		Done		; If i have already captured 100 events, then don't profile
+	
+	ADD		R10, R7, R9 ; R10 = R7 + R9 = &ThreadArray + ThreadCount
+	STR		R1,[R10]		;ThreadArray[ThreadCount] = RunPt , this is the new RunPt
+	
+	LDR		R11, =ThreadStart ; R11 = &ThreadStart
+	ADD		R10, R11, R9 ; R10 = R11+R9 = &ThreadStart + ThreadCount
+	LDR		R4, =Timer1_TAILR_Ptr
+	LDR		R4, [R4] ; R4 = &TIMER1_TAILR_R
+	LDR		R4, [R4] ; R4 = TIMER1_TAILR_R
+	STR		R4, [R10]	; ThreadStart = TIMER1_TAILR_R
+	
+	LDR		R9, [R8]; tempVar = ThreadCount
+	ADD		R9,#4  ; tempVar++ == tempVar + 4 bytes
+	STR		R9,[R8]; ThreadCount = tempVar
+; profile information	
+	
 	B		Done
 JumpToHigher	
 	LDR		R4, =ProxyThread	;R2 = pointer to HigherRunPt
 	LDR		R5, [R4]			;R3 = HigherRunPt
 	STR 	R5, [R0]			; RunPt = HigherRunPt
+		
+; profile information
+	LDR		R7, =ThreadArray
+	LDR		R8, =ThreadCount ; index of where we are in the array
+	LDR		R9, [R8]	; R9 = ThreadCount
+	CMP		R9, #400	; check if ThreadCount == 100*4bytes
+	BEQ		HigherRunPtDone		; If i have already captured 100 events, don't profile
+	
+	ADD		R10, R7, R9 ; R10 = R7 + R9 = &ThreadArray + ThreadCount
+	STR		R5,[R10]	; ThreadArray[ThreadCount] = RunPt , R5 holds HigherRunPt
+	
+	LDR		R11, =ThreadStart 	; R11 = &ThreadStart
+	ADD		R10, R11, R9 		; R10 = R11+R9 = &ThreadStart + ThreadCount
+	LDR		R4, =Timer1_TAILR_Ptr
+	LDR		R4, [R4] 			; R4 = &TIMER1_TAILR_R
+	LDR		R4, [R4] 			; R4 = TIMER1_TAILR_R
+	STR		R4, [R10]			; ThreadStart = TIMER1_TAILR_R
+	
+	LDR		R9, [R8]			; tempVar = ThreadCount
+	ADD		R9,#4  				; tempVar++ == tempVar + 4 bytes
+	STR		R9,[R8]				; Result: ThreadCount = ThreadCount++
+	
+; profile information
+
+HigherRunPtDone	
 	MOV 	R6, #0
 	STR		R6, [R2]			;Clear PriorityChange flag
 	LDR 	SP, [R5]			; SP = HigherRunPt->sp

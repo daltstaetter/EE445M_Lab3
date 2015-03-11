@@ -20,6 +20,13 @@ void EndCritical(int32_t primask);
 void PendSV_Handler(); // used for context switching in SysTick
 void StartOS(void);
 
+unsigned long ThreadStart[100];
+unsigned long ThreadEnd[100];
+unsigned long ThreadArray[100];
+volatile uint32_t* Timer1_TAILR_Ptr = ((volatile uint32_t *)0x40031028); 
+unsigned long ThreadCount = 0;
+
+
 #define MAILBOX_EMPTY	1
 #define MAILBOX_FULL	0
 
