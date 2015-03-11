@@ -122,6 +122,7 @@ void Interpreter(void){
 	printf("OS-RTV - OS_ReadTimerValue\n\r");
 	printf("OS-CPT - OS_ClearPeriodicTime\n\r");
 	printf("OS-ST - OS_StopThread\n\r");
+	printf("OS-K - Kill the Interpreter\n\r");
 	
 	while(1){
 		//PE4^=0x10;
@@ -175,7 +176,9 @@ void Interpreter(void){
 					printf("\n\r%d",TestBuffer[i]);
 				}
 			}
-		} 
+		} else if(!strcmp(input_str,"OS-K")){
+			OS_Kill();
+		}
 	/*	
 		else if(!strcmp(input_str,"OS-RTP")){
 			printf("\n\rTimer to Read:");
@@ -206,6 +209,7 @@ void Interpreter(void){
 		else{
 			printf("\n\rInvalid Command. Try Again\n\r");
 		}
+		OS_Sleep(1000);
 	}
 }
 #endif

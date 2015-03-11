@@ -153,17 +153,25 @@ void DAS(void)
 extern int g_NumAliveThreads;
 void ButtonWork(void)
 {
+	long status; 
 	unsigned long myId = OS_Id(); 
   PE1 ^= 0x02;
+	//status = StartCritical();
+	//OS_bWait(&LCDmutex);
   ST7735_Message(1,8,"NumCreated =",g_NumAliveThreads); 
+	//EndCritical(status);
   PE1 ^= 0x02;
   OS_Sleep(50);     // set this to sleep for 50msec
+	//status=StartCritical();
   ST7735_Message(1,9,"PIDWork     =",PIDWork);
   ST7735_Message(1,10,"DataLost    =",DataLost);
   ST7735_Message(1,11,"Jitter 0.1us=",MaxJitter);
+	//OS_bSignal(&LCDmutex);
+	//EndCritical(status);
   PE1 ^= 0x02;
   OS_Kill();  // done, OS does not return from a Kill
 } 
+
 
 //************SW1Push*************
 // Called when SW1 Button pushed
@@ -173,7 +181,7 @@ void SW1Push(void)
 {
   //if(OS_MsTime() > 20)
 	//{ // debounce
-   NumCreated += OS_AddThread(&ButtonWork,128,3);
+   NumCreated += OS_AddThread(&ButtonWork,128,SWITCHPRI);
 		//{
      // NumCreated++; 
     //}
@@ -185,7 +193,7 @@ void SW1Push(void)
 // Adds another foreground task
 // background threads execute once and return
 void SW2Push(void){
-  NumCreated += OS_AddThread(&ButtonWork,128,3);
+  NumCreated += OS_AddThread(&ButtonWork,128,SWITCHPRI);
     
 }
 //--------------end of Task 2-----------------------------
@@ -349,12 +357,12 @@ int main(void){
   OS_Fifo_Init(128);    // ***note*** 4 is not big enough*****
 
 //*******attach background tasks***********
-  OS_AddSwitchTasks(&SW1Push,&SW2Push,1);
+  OS_AddSwitchTasks(&SW1Push,&SW2Push,SWITCHPRI);
   
 
   NumCreated = 0 ;
 // create initial foreground threads
-  //NumCreated += OS_AddThread(&Interpreter,128,2); 
+  NumCreated += OS_AddThread(&Interpreter,128,2); 
   NumCreated += OS_AddThread(&Consumer,128,1); 
   NumCreated += OS_AddThread(&PID,128,3);  // Lab 3, make this lowest priority
 	ADC_Open(10);  // sequencer 3, channel 10, PB4, sampling in DAS()											
@@ -468,7 +476,7 @@ void Thread1b(void){
   for(;;){
     PE0 ^= 0x01;       // heartbeat
     Count1++;
-		OS_bSignal(&Ready2);
+		//OS_bSignal(&Ready2);
   }
 }
 
@@ -477,20 +485,20 @@ void Thread2b(void){
 	i = 0;
 	Count2 = 0;
   for(;;){
-		OS_bWait(&Ready2);
+		//OS_bWait(&Ready2);
     PE1 ^= 0x02;       // heartbeat
     Count2++;
-		OS_bSignal(&Ready2);
+		//OS_bSignal(&Ready2);
   }
 }
 void Thread3b(void){
 	int i;
   Count3 = 0;          
   for(;;){
-		OS_bWait(&Ready2);
+		//OS_bWait(&Ready2);
     PE2 ^= 0x04;       // heartbeat
     Count3++;
-		OS_bSignal(&Ready2);
+		//OS_bSignal(&Ready2);
   }
 }
 void Thread4b(void){
@@ -520,8 +528,8 @@ int Testmain2(void){  // Testmain2
 
   NumCreated = 0 ;
   NumCreated += OS_AddThread(&Thread1b,128,1); 
-  NumCreated += OS_AddThread(&Thread2b,128,1); 
-  NumCreated += OS_AddThread(&Thread3b,128,1);
+  NumCreated += OS_AddThread(&Thread2b,128,2); 
+  NumCreated += OS_AddThread(&Thread3b,128,3);
 	OS_AddSwitchTasks(&DoNothing1,&DoNothing2,0);	
   // Count1 Count2 Count3 should be equal on average
   // counts are larger than testmain1
