@@ -101,28 +101,18 @@ void Interpreter(void){
 	char input_str[30];
 	int input_num,i,device,line;
 	int freq, numSamples;
-	//PLL_Init();
 	UART_Init();              // initialize UART
-	//Output_Init();						// initialize LCD
-	//GPIO_PortF_Init();				// initialize PortF
 	OutCRLF();
 	OutCRLF();
-	//OS_AddPeriodicThread(&PF1_Toggle, 1, 100, 4); //Toggle PF1 at 10 Hz
-	//OS_LaunchThread(&PF1_Toggle, 1);
 	
 	//Print Interpreter Menu
 	printf("Debugging Interpreter Lab 1\n\r");
 	printf("Commands:\n\r");
 	printf("LCD\n\r");
-	printf("ADC_Open - must call before ADC_In\n\r");
-	printf("ADC_In\n\r");
-	printf("ADC_Collect\n\r");
-	printf("ADC_Status\n\r");
-	printf("OS-RTP - OS_ReadTimerPeriod\n\r");
-	printf("OS-RTV - OS_ReadTimerValue\n\r");
-	printf("OS-CPT - OS_ClearPeriodicTime\n\r");
-	printf("OS-ST - OS_StopThread\n\r");
 	printf("OS-K - Kill the Interpreter\n\r");
+	#ifdef PROFILER
+	printf("PROFILE - get profiling info for past events\n\r");
+	#endif
 	
 	while(1){
 		//PE4^=0x10;
@@ -140,76 +130,20 @@ void Interpreter(void){
 			printf("\n\rLine to Print to: ");
 			line = UART_InUDec();
 			ST7735_Message(device,line,input_str,input_num);
-		}
-		
-		else if(!strcmp(input_str,"ADC_Open")){
-			printf("\n\rChannel to Open: ");
-			input_num=UART_InUDec();
-			ADC_Open(input_num);
-		}
-		
-		else if(!strcmp(input_str,"ADC_In")){
-			input_num=ADC_In();
-			printf("\n\rSample from ADC: %d",input_num);
-		}
-		
-		else if(!strcmp(input_str,"ADC_Collect")){
-			printf("\n\rChannel to Open: ");
-			input_num=UART_InUDec();
-			printf("\n\rSampling Frequency: ");
-			freq=UART_InUDec();
-			printf("\n\rNumber of Samples: ");
-			numSamples=UART_InUDec();
-			//ADC_Collect(input_num,freq,TestBuffer,numSamples);
-			
-		}
-		
-		else if(!strcmp(input_str,"ADC_Status")){
-			int i;
-			input_num = ADC_Status();
-			if(input_num==0){
-				printf("\n\rStatus: Busy");
-			}else{
-				printf("\n\rStatus: Done");
-				printf("\n\rSamples Collected:");
-				for(i=0;i<numSamples;i++){
-					printf("\n\r%d",TestBuffer[i]);
-				}
-			}
 		} else if(!strcmp(input_str,"OS-K")){
 			OS_Kill();
+			#ifdef PROFILER
+		} else if(!strcmp(input_str,"PROFILE")){
+			printf("\n\rThreadAddress\tThreadAction\tThreadTime\n\r");
+			for(i=0; i<PROFSIZE; i++){
+				printf("%lu\t\t%lu\t\t%lu\n\r",(unsigned long)ThreadArray[i],ThreadAction[i],ThreadTime[i]/80000);
+			}
+			#endif 
 		}
-	/*	
-		else if(!strcmp(input_str,"OS-RTP")){
-			printf("\n\rTimer to Read:");
-			input_num = UART_InUDec();
-			printf("\n\rCurrent Timer Period: ");
-			printf("%d",OS_ReadTimerPeriod(input_num));
-		}
-		
-		else if(!strcmp(input_str,"OS-RTV")){
-			printf("\n\rTimer to Read:");
-			input_num = UART_InUDec();
-			printf("\n\rCurrent Timer Value: ");
-			printf("%d",OS_ReadTimerValue(input_num));
-		}
-		
-		else if(!strcmp(input_str,"OS-CPT")){
-			printf("\n\rTimer to Clear:");
-			input_num = UART_InUDec();
-			OS_ClearPeriodicTime(input_num);
-		}
-		
-		else if(!strcmp(input_str,"OS-ST")){
-			printf("\n\rTimer to Stop:");
-			input_num = UART_InUDec();
-			OS_StopThread(&PF1_Toggle,input_num);
-		}
-*/		
 		else{
 			printf("\n\rInvalid Command. Try Again\n\r");
 		}
-		OS_Sleep(1000);
+		//OS_Sleep(1000);
 	}
 }
 #endif

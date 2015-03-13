@@ -21,8 +21,13 @@ extern void(*HandlerTaskArray[12])(void);
 #define TIME_500US  (TIME_1MS/2)  
 #define TIME_250US  (TIME_1MS/5)  
 
-
 typedef struct tcb tcbType;
+
+#define PROFILER 1
+#define PROFSIZE 1000
+extern unsigned long ThreadTime[PROFSIZE];
+extern unsigned long ThreadAction[PROFSIZE];
+extern tcbType* ThreadArray[PROFSIZE];
 
 #define NUMPRI 32
 //Priority Array of Round-Robin Linked Lists

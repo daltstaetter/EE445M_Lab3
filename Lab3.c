@@ -216,14 +216,12 @@ void SW2Push(void){
 // inputs:  none
 // outputs: none
 void Producer(unsigned long data){  
-	PE2^=0x04;
   if(NumSamples < RUNLENGTH){   // finite time run
     NumSamples++;               // number of samples
     if(OS_Fifo_Put(data) == 0){ // send to consumer
       DataLost++;
     } 
   } 
-	PE2^=0x04;
 }
 void Display(void); 
 
@@ -241,15 +239,13 @@ void Consumer(void)
   NumCreated += OS_AddThread(&Display,128,1); 
   while(NumSamples < RUNLENGTH) 
 	{ 
-    //PE2 = 0x04;
+    PE2 = 0x04;
     for(t = 0; t < 64; t++)
 		{   // collect 64 ADC samples
-			//PE2 = 0x04;
       data = OS_Fifo_Get();    // get from producer
       x[t] = data;             // real part is 0 to 4095, imaginary part is 0
-			//PE2 = 0x00;
     }
-    //PE2 = 0x00;
+    PE2 = 0x00;
     cr4_fft_64_stm32(y,x,64);  // complex FFT of last 64 ADC values
     DCcomponent = y[0]&0xFFFF; // Real part at frequency 0, imaginary part should be zero
     OS_MailBox_Send(DCcomponent); // called every 2.5ms*64 = 160ms
@@ -354,7 +350,7 @@ int main(void){
 
 //********initialize communication channel
   OS_MailBox_Init();
-  OS_Fifo_Init(128);    // ***note*** 4 is not big enough*****
+  OS_Fifo_Init(32);    // ***note*** 4 is not big enough*****
 
 //*******attach background tasks***********
   OS_AddSwitchTasks(&SW1Push,&SW2Push,SWITCHPRI);
@@ -476,7 +472,8 @@ void Thread1b(void){
   for(;;){
     PE0 ^= 0x01;       // heartbeat
     Count1++;
-		//OS_bSignal(&Ready2);
+		OS_Sleep(10);
+		OS_Kill();
   }
 }
 
@@ -488,7 +485,8 @@ void Thread2b(void){
 		//OS_bWait(&Ready2);
     PE1 ^= 0x02;       // heartbeat
     Count2++;
-		//OS_bSignal(&Ready2);
+		OS_Sleep(10);
+		OS_Kill();
   }
 }
 void Thread3b(void){

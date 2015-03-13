@@ -20,13 +20,14 @@ void EndCritical(int32_t primask);
 void PendSV_Handler(); // used for context switching in SysTick
 void StartOS(void);
 
-unsigned long ThreadTime[100];
-unsigned long ThreadAction[100];
-tcbType ThreadArray[100];
+unsigned long ThreadTime[PROFSIZE];
+unsigned long ThreadAction[PROFSIZE];
+tcbType* ThreadArray[PROFSIZE];
 unsigned long ThreadCount = 0;
 unsigned long DisableTime = 0;
 unsigned long DisableTimeTemp = 0;
 unsigned long multAccDisTime = 0;
+
 
 unsigned long startTime = 0;
 #define THREADSUSPEND 0
@@ -34,9 +35,8 @@ unsigned long startTime = 0;
 #define THREADSLEEP 	2
 #define THREADWAKERUN	3
 #define THREADSWITCH 	4
-
 volatile uint32_t* Timer1_TAILR_Ptr = ((volatile uint32_t *)0x40031028); 
-
+volatile uint32_t* Timer1_TAR_Ptr = ((volatile uint32_t *)0x40031048);
 
 
 #define MAILBOX_EMPTY	1
@@ -60,7 +60,6 @@ volatile uint32_t* Timer1_TAILR_Ptr = ((volatile uint32_t *)0x40031028);
 
 
 #define SYSTICK_PERIOD 2 //Systick interrupts every 2 ms so decrement sleep counters by 2
-
 //Priority Array of Round-Robin Linked Lists
 tcbType* FrontOfPriLL[NUMPRI];
 tcbType* EndOfPriLL[NUMPRI];
@@ -132,7 +131,7 @@ void OS_Init(void){
 	TIMER1_CTL_R &= ~TIMER_CTL_TAEN; // disable TimerA1
 	TIMER1_CFG_R  = TIMER_CFG_32_BIT_TIMER; // configure for 32-bit mode
 	TIMER1_TAMR_R = TIMER_TAMR_TAMR_PERIOD;
-	TIMER1_TAILR_R = (0x01<<31)-1;
+	TIMER1_TAILR_R = 0xFFFFFFFF-1;
 	TIMER1_TAPR_R = 0; // set prescale = 0
 	TIMER1_CTL_R |= TIMER_CTL_TAEN; // disable TimerA0
 	#ifdef SYSTICK
@@ -253,7 +252,7 @@ void OS_Signal(Sema4Type *semaPt)
 #ifdef PROFILER
 	else
 	{
-		multAccDisTime += OS_TimeDifference(startTime,OS_Time);
+		multAccDisTime += OS_TimeDifference(startTime,OS_Time());
 	}
 #endif
 	EndCritical(status);
@@ -535,12 +534,10 @@ void OS_Sleep(unsigned long sleepTime){
 		status = StartCritical();
 		
 #ifdef PROFILER
-		if(ThreadCount < 100)
-		{
-			ThreadArray[ThreadCount] = RunPt
-			ThreadTime[ThreadCount] = OS_Time();
-			ThreadAction[ThreadCount++] = THREADSLEEP;
-		}
+		ThreadArray[ThreadCount] = RunPt;
+					ThreadTime[ThreadCount] = OS_Time();
+					ThreadAction[ThreadCount++] = THREADSLEEP;
+					if (ThreadCount == PROFSIZE){ThreadCount=0;}
 		startTime = OS_Time();
 #endif						
 		
@@ -571,12 +568,10 @@ void OS_Kill(void){
 	status = StartCritical(); 
 	
 #ifdef PROFILER
-	if(ThreadCount < 100)
-		{
-			ThreadArray[ThreadCount] = RunPt
-			ThreadTime[ThreadCount] = OS_Time();
-			ThreadAction[ThreadCount++] = THREADKILL;
-		}
+		ThreadArray[ThreadCount] = RunPt;
+					ThreadTime[ThreadCount] = OS_Time();
+					ThreadAction[ThreadCount++] = THREADKILL;
+					if (ThreadCount == PROFSIZE){ThreadCount=0;}
 		startTime = OS_Time();
 #endif					
 	
@@ -612,12 +607,10 @@ void OS_Suspend(int PriChange){
 	long sr = StartCritical();
 	
 #ifdef PROFILER
-	if(ThreadCount < 100)
-		{
-			ThreadArray[ThreadCount] = RunPt
-			ThreadTime[ThreadCount] = OS_Time();
-			ThreadAction[ThreadCount++] = THREADSUSPEND;
-		}
+		ThreadArray[ThreadCount] = RunPt;
+					ThreadTime[ThreadCount] = OS_Time();
+					ThreadAction[ThreadCount++] = THREADSUSPEND;
+					if (ThreadCount == PROFSIZE){ThreadCount=0;}
 #endif				
 	
 	if(PriChange==1){
@@ -631,12 +624,10 @@ void OS_Suspend(int PriChange){
 	}
 	
 #ifdef PROFILER
-	if(ThreadCount < 100)
-		{
-			ThreadArray[ThreadCount] = ProxyThread;
-			ThreadTime[ThreadCount] = OS_Time();
-			ThreadAction[ThreadCount++] = THREADSWITCH;
-		}
+		ThreadArray[ThreadCount] = ProxyThread;
+					ThreadTime[ThreadCount] = OS_Time();
+					ThreadAction[ThreadCount++] = THREADSWITCH;
+					if (ThreadCount == PROFSIZE){ThreadCount=0;}
 #endif				
 	
 	NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV; // does a contex switch 
@@ -1028,12 +1019,10 @@ static int OS_WakeUpSleeping(void){
 				if(1<<(31-priority) > HighestPriority){			//Indicate if priority change occurred
 					
 #ifdef PROFILER
-					if(ThreadCount < 100)
-					{
-						ThreadArray[ThreadCount] = sleepIterator;
-						ThreadTime[ThreadCount] = OS_Time();
-						ThreadAction[ThreadCount++] = THREADWAKERUN;
-					}
+				ThreadArray[ThreadCount] = sleepIterator;
+					ThreadTime[ThreadCount] = OS_Time();
+					ThreadAction[ThreadCount++] = THREADWAKERUN;
+					if (ThreadCount == PROFSIZE){ThreadCount=0;}
 #endif					
 					
 					HighestPriority|=1<<(31-priority);
@@ -1058,12 +1047,10 @@ static int OS_WakeUpSleeping(void){
 				if(1<<(31-priority) > HighestPriority){
 					
 #ifdef PROFILER
-					if(ThreadCount < 100)
-					{
-						ThreadArray[ThreadCount] = wokenThreads[k];
-						ThreadTime[ThreadCount] = OS_Time();
-						ThreadAction[ThreadCount++] = THREADWAKERUN;
-					}
+					ThreadArray[ThreadCount] = wokenThreads[k];
+					ThreadTime[ThreadCount] = OS_Time();
+					ThreadAction[ThreadCount++] = THREADWAKERUN;
+					if (ThreadCount == PROFSIZE){ThreadCount=0;}
 #endif							
 					HighestPriority|=1<<(31-priority);
 					priChange = 1;
@@ -1080,12 +1067,10 @@ static int OS_WakeUpSleeping(void){
 					HighestPriority|=1<<(31-priority);
 					
 #ifdef PROFILER
-					if(ThreadCount < 100)
-					{
-						ThreadArray[ThreadCount] = sleepIterator;
-						ThreadTime[ThreadCount] = OS_Time();
-						ThreadAction[ThreadCount++] = THREADWAKERUN;
-					}
+					ThreadArray[ThreadCount] = sleepIterator;
+					ThreadTime[ThreadCount] = OS_Time();
+					ThreadAction[ThreadCount++] = THREADWAKERUN;
+					if (ThreadCount == PROFSIZE){ThreadCount=0;}
 #endif											
 					
 					priChange = 1;
