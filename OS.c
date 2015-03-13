@@ -20,11 +20,23 @@ void EndCritical(int32_t primask);
 void PendSV_Handler(); // used for context switching in SysTick
 void StartOS(void);
 
-unsigned long ThreadStart[100];
-unsigned long ThreadEnd[100];
-unsigned long ThreadArray[100];
-volatile uint32_t* Timer1_TAILR_Ptr = ((volatile uint32_t *)0x40031028); 
+unsigned long ThreadTime[100];
+unsigned long ThreadAction[100];
+tcbType ThreadArray[100];
 unsigned long ThreadCount = 0;
+unsigned long DisableTime = 0;
+unsigned long DisableTimeTemp = 0;
+unsigned long multAccDisTime = 0;
+
+unsigned long startTime = 0;
+#define THREADSUSPEND 0
+#define THREADKILL 		1
+#define THREADSLEEP 	2
+#define THREADWAKERUN	3
+#define THREADSWITCH 	4
+
+volatile uint32_t* Timer1_TAILR_Ptr = ((volatile uint32_t *)0x40031028); 
+
 
 
 #define MAILBOX_EMPTY	1
@@ -168,6 +180,11 @@ void OS_Wait(Sema4Type *semaPt){
 	int32_t status;
 	uint32_t priority;
 	status = StartCritical(); // save I bit 
+	
+#ifdef PROFILER
+	startTime = OS_Time();
+#endif 
+	
 	semaPt->Value = semaPt->Value - 1;
 	if(semaPt->Value < 0){ // add to sema4's blocking linked list
 		RunPt->BlockedStatus=semaPt;
@@ -178,6 +195,7 @@ void OS_Wait(Sema4Type *semaPt){
 			LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
 			HighestPriority&=~(1<<(31-priority));		//If it's the last thread at that priority, mark that bin as empty
 			EndCritical(status);
+
 			OS_Suspend(JMP2HIGHERPRI); //since the highest priority thread is the last at that priority, re-evaluate highest priority
 		}else{
 			LLAdd(&semaPt->FrontPt,RunPt,&semaPt->EndPt); // add thread to end of sema4 blocked LL
@@ -185,6 +203,13 @@ void OS_Wait(Sema4Type *semaPt){
 			OS_Suspend(JMPOVER); // indicate the running thread was blocked, use the ProxyThread
 		}
 	}
+#ifdef PROFILER
+	else
+	{
+		multAccDisTime += OS_TimeDifference(startTime,OS_Time());
+	}
+#endif
+	
 	EndCritical(status);
 }	
 
@@ -202,6 +227,10 @@ void OS_Signal(Sema4Type *semaPt)
 	int32_t status;
 	
 	status = StartCritical(); // save I bit 
+#ifdef PROFILER
+	startTime = OS_Time();
+#endif
+
 	semaPt->Value = semaPt->Value + 1;
 	if(semaPt->Value <= 0)
 	{		
@@ -221,6 +250,12 @@ void OS_Signal(Sema4Type *semaPt)
 			OS_Suspend(JMP2HIGHERPRI);
 		}
 	}
+#ifdef PROFILER
+	else
+	{
+		multAccDisTime += OS_TimeDifference(startTime,OS_Time);
+	}
+#endif
 	EndCritical(status);
 }	
 
@@ -498,6 +533,17 @@ void OS_Sleep(unsigned long sleepTime){
 	if(sleepTime > 0)
 	{
 		status = StartCritical();
+		
+#ifdef PROFILER
+		if(ThreadCount < 100)
+		{
+			ThreadArray[ThreadCount] = RunPt
+			ThreadTime[ThreadCount] = OS_Time();
+			ThreadAction[ThreadCount++] = THREADSLEEP;
+		}
+		startTime = OS_Time();
+#endif						
+		
 		priority=RunPt->Priority;			//get priority of currently running thread
 		RunPt->SleepCtr = sleepTime; 	//set the sleep time
 		NextThread = RunPt->next;
@@ -523,6 +569,17 @@ void OS_Kill(void){
 	int32_t status;
 	int32_t priority;
 	status = StartCritical(); 
+	
+#ifdef PROFILER
+	if(ThreadCount < 100)
+		{
+			ThreadArray[ThreadCount] = RunPt
+			ThreadTime[ThreadCount] = OS_Time();
+			ThreadAction[ThreadCount++] = THREADKILL;
+		}
+		startTime = OS_Time();
+#endif					
+	
 	RunPt->sp = NULL;							//free the tcb memory
 	RunPt->MemStatus = FREE;
 	priority = RunPt->Priority;
@@ -553,6 +610,16 @@ void OS_Kill(void){
 void OS_Suspend(int PriChange){
 	uint32_t HiPri;
 	long sr = StartCritical();
+	
+#ifdef PROFILER
+	if(ThreadCount < 100)
+		{
+			ThreadArray[ThreadCount] = RunPt
+			ThreadTime[ThreadCount] = OS_Time();
+			ThreadAction[ThreadCount++] = THREADSUSPEND;
+		}
+#endif				
+	
 	if(PriChange==1){
 		ProxyChange=1;
 		//determine hightest priority
@@ -562,8 +629,27 @@ void OS_Suspend(int PriChange){
 		ProxyChange=1;
 		ProxyThread=NextThread;
 	}
+	
+#ifdef PROFILER
+	if(ThreadCount < 100)
+		{
+			ThreadArray[ThreadCount] = ProxyThread;
+			ThreadTime[ThreadCount] = OS_Time();
+			ThreadAction[ThreadCount++] = THREADSWITCH;
+		}
+#endif				
+	
 	NVIC_INT_CTRL_R |= NVIC_INT_CTRL_PEND_SV; // does a contex switch 
 	OS_ResetSysTick(); // reset SysTick period
+
+#ifdef PROFILER		
+	DisableTimeTemp = OS_TimeDifference(startTime,OS_Time());
+	multAccDisTime += DisableTimeTemp;
+	if(DisableTimeTemp > DisableTime)
+	{
+		DisableTime = DisableTimeTemp;
+	}
+#endif 
 	EndCritical(sr);
 }
  
@@ -940,6 +1026,16 @@ static int OS_WakeUpSleeping(void){
 			LLRemove(&FrontOfSlpLL,sleepIterator,&EndOfSlpLL);
 			if(LLAdd(&FrontOfPriLL[priority],sleepIterator,&EndOfPriLL[priority])){			
 				if(1<<(31-priority) > HighestPriority){			//Indicate if priority change occurred
+					
+#ifdef PROFILER
+					if(ThreadCount < 100)
+					{
+						ThreadArray[ThreadCount] = sleepIterator;
+						ThreadTime[ThreadCount] = OS_Time();
+						ThreadAction[ThreadCount++] = THREADWAKERUN;
+					}
+#endif					
+					
 					HighestPriority|=1<<(31-priority);
 					return 1;
 				}
@@ -960,6 +1056,15 @@ static int OS_WakeUpSleeping(void){
 			LLRemove(&FrontOfSlpLL,wokenThreads[k],&EndOfSlpLL);
 			if(LLAdd(&FrontOfPriLL[priority],wokenThreads[k],&EndOfPriLL[priority])){			
 				if(1<<(31-priority) > HighestPriority){
+					
+#ifdef PROFILER
+					if(ThreadCount < 100)
+					{
+						ThreadArray[ThreadCount] = wokenThreads[k];
+						ThreadTime[ThreadCount] = OS_Time();
+						ThreadAction[ThreadCount++] = THREADWAKERUN;
+					}
+#endif							
 					HighestPriority|=1<<(31-priority);
 					priChange = 1;
 				}
@@ -973,6 +1078,16 @@ static int OS_WakeUpSleeping(void){
 			if(LLAdd(&FrontOfPriLL[priority],sleepIterator,&EndOfPriLL[priority])){			
 				if(1<<(31-priority) > HighestPriority){			//Indicate if priority change occurred
 					HighestPriority|=1<<(31-priority);
+					
+#ifdef PROFILER
+					if(ThreadCount < 100)
+					{
+						ThreadArray[ThreadCount] = sleepIterator;
+						ThreadTime[ThreadCount] = OS_Time();
+						ThreadAction[ThreadCount++] = THREADWAKERUN;
+					}
+#endif											
+					
 					priChange = 1;
 				}
 			}else priChange = 0;
@@ -986,6 +1101,10 @@ void SysTick_Handler(void)
 	int status;
 	uint32_t HiPri;
 	status = StartCritical(); 
+#ifdef PROFILER
+	startTime = OS_Time();
+#endif	
+	
 	g_msTime += SYSTICK_PERIOD;
 	//Wake up sleeping threads
 	

@@ -71,25 +71,25 @@ PendSV_Handler
 	LDR     SP, [R1]           ; 7) new thread SP; SP = RunPt->sp;
 
 ; profile information
-	LDR		R7, =ThreadArray
-	LDR		R8, =ThreadCount ; index of where we are in the array
-	LDR		R9, [R8]	; R9 = ThreadCount
-	CMP		R9, #400	; check if ThreadCount == 100*4bytes
-	BEQ		Done		; If i have already captured 100 events, then don't profile
+;	LDR		R7, =ThreadArray
+;	LDR		R8, =ThreadCount ; index of where we are in the array
+;	LDR		R9, [R8]	; R9 = ThreadCount
+;	CMP		R9, #400	; check if ThreadCount == 100*4bytes
+;	BEQ		Done		; If i have already captured 100 events, then don't profile
+;	
+;	ADD		R10, R7, R9 ; R10 = R7 + R9 = &ThreadArray + ThreadCount
+;	STR		R1,[R10]		;ThreadArray[ThreadCount] = RunPt , this is the new RunPt
+;	
+;	LDR		R11, =ThreadStart ; R11 = &ThreadStart
+;	ADD		R10, R11, R9 ; R10 = R11+R9 = &ThreadStart + ThreadCount
+;	LDR		R4, =Timer1_TAILR_Ptr
+;	LDR		R4, [R4] ; R4 = &TIMER1_TAILR_R
+;	LDR		R4, [R4] ; R4 = TIMER1_TAILR_R
+;	STR		R4, [R10]	; ThreadStart = TIMER1_TAILR_R
 	
-	ADD		R10, R7, R9 ; R10 = R7 + R9 = &ThreadArray + ThreadCount
-	STR		R1,[R10]		;ThreadArray[ThreadCount] = RunPt , this is the new RunPt
-	
-	LDR		R11, =ThreadStart ; R11 = &ThreadStart
-	ADD		R10, R11, R9 ; R10 = R11+R9 = &ThreadStart + ThreadCount
-	LDR		R4, =Timer1_TAILR_Ptr
-	LDR		R4, [R4] ; R4 = &TIMER1_TAILR_R
-	LDR		R4, [R4] ; R4 = TIMER1_TAILR_R
-	STR		R4, [R10]	; ThreadStart = TIMER1_TAILR_R
-	
-	LDR		R9, [R8]; tempVar = ThreadCount
-	ADD		R9,#4  ; tempVar++ == tempVar + 4 bytes
-	STR		R9,[R8]; ThreadCount = tempVar
+;	LDR		R9, [R8]; tempVar = ThreadCount
+;	ADD		R9,#4  ; tempVar++ == tempVar + 4 bytes
+;	STR		R9,[R8]; ThreadCount = tempVar
 ; profile information	
 	
 	B		Done
@@ -99,26 +99,26 @@ JumpToHigher
 	STR 	R5, [R0]			; RunPt = HigherRunPt
 		
 ; profile information
-	LDR		R7, =ThreadArray
-	LDR		R8, =ThreadCount ; index of where we are in the array
-	LDR		R9, [R8]	; R9 = ThreadCount
-	CMP		R9, #400	; check if ThreadCount == 100*4bytes
-	BEQ		HigherRunPtDone		; If i have already captured 100 events, don't profile
-	
-	ADD		R10, R7, R9 ; R10 = R7 + R9 = &ThreadArray + ThreadCount
-	STR		R5,[R10]	; ThreadArray[ThreadCount] = RunPt , R5 holds HigherRunPt
-	
-	LDR		R11, =ThreadStart 	; R11 = &ThreadStart
-	ADD		R10, R11, R9 		; R10 = R11+R9 = &ThreadStart + ThreadCount
-	LDR		R4, =Timer1_TAILR_Ptr
-	LDR		R4, [R4] 			; R4 = &TIMER1_TAILR_R
-	LDR		R4, [R4] 			; R4 = TIMER1_TAILR_R
-	STR		R4, [R10]			; ThreadStart = TIMER1_TAILR_R
-	
-	LDR		R9, [R8]			; tempVar = ThreadCount
-	ADD		R9,#4  				; tempVar++ == tempVar + 4 bytes
-	STR		R9,[R8]				; Result: ThreadCount = ThreadCount++
-	
+;	LDR		R7, =ThreadArray
+;	LDR		R8, =ThreadCount ; index of where we are in the array
+;	LDR		R9, [R8]	; R9 = ThreadCount
+;	CMP		R9, #400	; check if ThreadCount == 100*4bytes
+;	BEQ		HigherRunPtDone		; If i have already captured 100 events, don't profile
+;	
+;	ADD		R10, R7, R9 ; R10 = R7 + R9 = &ThreadArray + ThreadCount
+;	STR		R5,[R10]	; ThreadArray[ThreadCount] = RunPt , R5 holds HigherRunPt
+;	
+;	LDR		R11, =ThreadStart 	; R11 = &ThreadStart
+;	ADD		R10, R11, R9 		; R10 = R11+R9 = &ThreadStart + ThreadCount
+;	LDR		R4, =Timer1_TAILR_Ptr
+;	LDR		R4, [R4] 			; R4 = &TIMER1_TAILR_R
+;	LDR		R4, [R4] 			; R4 = TIMER1_TAILR_R
+;	STR		R4, [R10]			; ThreadStart = TIMER1_TAILR_R
+;	
+;	LDR		R9, [R8]			; tempVar = ThreadCount
+;	ADD		R9,#4  				; tempVar++ == tempVar + 4 bytes
+;	STR		R9,[R8]				; Result: ThreadCount = ThreadCount++
+;	
 ; profile information
 
 HigherRunPtDone	
